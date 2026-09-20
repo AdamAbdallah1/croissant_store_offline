@@ -3,283 +3,586 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+
   <meta name="theme-color" content="#111111">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="سجل المصنع">
+
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="styles.css">
+
   <title>سجل المصنع</title>
 </head>
 
 <body>
+
 <div class="app-shell">
 
 <header class="topbar">
+
   <div>
     <p class="eyebrow">سجل حركة المنتجات</p>
     <h1>سجل المصنع</h1>
   </div>
-  <button id="installBtn" class="icon-btn" hidden aria-label="تثبيت">＋</button>
+
+  <button
+    id="installBtn"
+    class="icon-btn"
+    hidden
+    aria-label="تثبيت التطبيق"
+  >＋</button>
+
 </header>
 
 <main>
 
+<!-- الرئيسية -->
+
 <section id="view-home" class="view active">
-  <div class="hero-card">
-    <div>
-      <span class="muted">اليوم</span>
-      <strong id="todayLabel">—</strong>
+
+  <div class="day-selector">
+
+    <button id="previousDay" class="day-btn">‹</button>
+
+    <div class="selected-day">
+
+      <span>اليوم المحدد</span>
+
+      <strong id="dayLabel">—</strong>
+
+      <input id="selectedDate" type="date">
+
     </div>
+
+    <button id="nextDay" class="day-btn">›</button>
+
+  </div>
+
+  <button id="goToday" class="today-btn">
+    العودة إلى اليوم
+  </button>
+
+  <div class="hero-card">
+
+    <div>
+      <span class="muted">إجمالي اليوم</span>
+      <strong id="dayLabelHero">سجل اليوم</strong>
+    </div>
+
     <div class="hero-total">
       <span>إجمالي الحبات</span>
       <strong id="todayTotal">0</strong>
     </div>
+
   </div>
 
   <div class="stats-grid">
-    <div class="stat-card"><span>العمليات</span><strong id="todayCount">0</strong></div>
-    <div class="stat-card"><span>للزبائن</span><strong id="todayCustomers">0</strong></div>
-    <div class="stat-card"><span>للصالة</span><strong id="todayHalls">0</strong></div>
+
+    <div class="stat-card">
+      <span>العمليات</span>
+      <strong id="todayCount">0</strong>
+    </div>
+
+    <div class="stat-card">
+      <span>للزبائن</span>
+      <strong id="todayCustomers">0</strong>
+    </div>
+
+    <div class="stat-card">
+      <span>للصالة</span>
+      <strong id="todayHalls">0</strong>
+    </div>
+
   </div>
 
   <div class="section-heading">
-    <h2>آخر العمليات</h2>
-    <button class="text-btn" data-nav="records">عرض الكل</button>
+
+    <div>
+      <p class="eyebrow">اليوم المحدد</p>
+      <h2>العمليات</h2>
+    </div>
+
+    <button class="text-btn" data-nav="records">
+      عرض الكل
+    </button>
+
   </div>
 
   <div id="recentRecords" class="record-list"></div>
 
-  <button class="primary-btn large" data-nav="new">
+  <button
+    class="primary-btn large"
+    data-new-record
+  >
     ＋ تسجيل خروج جديد
   </button>
+
 </section>
+
+<!-- عملية جديدة -->
 
 <section id="view-new" class="view">
 
   <div class="page-heading">
+
     <button class="back-btn" data-nav="home">→</button>
+
     <div>
-      <p class="eyebrow">عملية جديدة</p>
-      <h2>تسجيل خروج</h2>
+      <p class="eyebrow" id="formEyebrow">
+        عملية جديدة
+      </p>
+
+      <h2 id="formTitle">
+        تسجيل خروج
+      </h2>
     </div>
+
+  </div>
+
+  <div class="selected-day-form">
+
+    <span>سيتم تسجيل العملية في</span>
+    <strong id="formDateLabel">اليوم</strong>
+
   </div>
 
   <form id="recordForm" class="form-card">
 
     <div class="field">
+
       <label>الجهة</label>
 
       <div class="segmented">
+
         <label>
-          <input type="radio" name="type" value="customer" checked>
+          <input
+            type="radio"
+            name="type"
+            value="customer"
+            checked
+          >
           <span>زبون</span>
         </label>
 
         <label>
-          <input type="radio" name="type" value="hall">
+          <input
+            type="radio"
+            name="type"
+            value="hall"
+          >
           <span>صالة</span>
         </label>
+
       </div>
+
     </div>
 
     <div id="customerNameField" class="field">
-      <label for="partyName">اسم الزبون</label>
-      <input id="partyName" autocomplete="off" placeholder="مثلاً: آدم">
+
+      <label for="partyName">
+        اسم الزبون
+      </label>
+
+      <input
+        id="partyName"
+        autocomplete="off"
+        placeholder="مثلاً: آدم"
+      >
+
     </div>
 
-    <div id="hallSelected" class="selected-hall" hidden>
+    <div
+      id="hallSelected"
+      class="selected-hall"
+      hidden
+    >
       <span>الجهة</span>
-      <strong>صالة</strong>
+      <strong>زبون</strong>
     </div>
 
     <div class="field">
+
       <label>الصناديق الكاملة</label>
 
       <div class="input-with-suffix">
-        <input id="fullBoxes" type="number" min="0" step="1"
-               inputmode="numeric" value="0">
-        <span>صندوق × <b id="boxSizeLabel">40</b></span>
+
+        <input
+          id="fullBoxes"
+          type="number"
+          min="0"
+          step="1"
+          inputmode="numeric"
+          value="0"
+        >
+
+        <span>
+          صندوق ×
+          <b id="boxSizeLabel">40</b>
+        </span>
+
       </div>
+
     </div>
 
     <div class="field">
+
       <div class="row-between">
+
         <label>الصناديق الناقصة</label>
-        <button type="button" class="text-btn" id="addPartialBtn">
+
+        <button
+          type="button"
+          class="text-btn"
+          id="addPartialBtn"
+        >
           ＋ إضافة
         </button>
+
       </div>
 
       <div id="partials"></div>
+
     </div>
 
     <div class="total-card">
+
       <span>المجموع</span>
-      <strong><span id="totalPieces">0</span> حبة</strong>
+
+      <strong>
+        <span id="totalPieces">0</span>
+        حبة
+      </strong>
+
     </div>
 
     <div id="paymentSection">
 
       <div class="field">
+
         <label>طريقة الدفع</label>
 
         <div class="payment-grid">
-          <label><input type="radio" name="payment" value="cash" checked><span>نقداً</span></label>
-          <label><input type="radio" name="payment" value="whish"><span>Whish</span></label>
-          <label><input type="radio" name="payment" value="unpaid"><span>غير مدفوع</span></label>
+
+          <label>
+            <input
+              type="radio"
+              name="payment"
+              value="cash"
+              checked
+            >
+            <span>نقداً</span>
+          </label>
+
+          <label>
+            <input
+              type="radio"
+              name="payment"
+              value="whish"
+            >
+            <span>Whish</span>
+          </label>
+
+          <label>
+            <input
+              type="radio"
+              name="payment"
+              value="unpaid"
+            >
+            <span>غير مدفوع</span>
+          </label>
+
         </div>
+
       </div>
 
       <div id="amountField" class="field">
-        <label for="amount">المبلغ <small>اختياري</small></label>
-        <input id="amount" type="number" min="0" step="0.01"
-               inputmode="decimal" placeholder="مثلاً 50">
+
+        <label for="amount">
+          المبلغ
+          <small>اختياري</small>
+        </label>
+
+        <input
+          id="amount"
+          type="number"
+          min="0"
+          step="0.01"
+          inputmode="decimal"
+          placeholder="مثلاً 50"
+        >
+
       </div>
 
     </div>
 
     <div class="field">
-      <label for="notes">ملاحظات / خارج الفاتورة</label>
-      <textarea id="notes" rows="4"
-        placeholder="مثلاً: 2 كرواسون للموظفين، طلب إضافي، مرتجع..."></textarea>
+
+      <label for="notes">
+        ملاحظات / خارج الفاتورة
+      </label>
+
+      <textarea
+        id="notes"
+        rows="4"
+        placeholder="مثلاً: طلب إضافي، مرتجع، ملاحظة..."
+      ></textarea>
+
     </div>
 
-    <button class="primary-btn" type="submit">
+    <button
+      class="primary-btn"
+      id="saveRecordBtn"
+      type="submit"
+    >
       حفظ العملية
     </button>
 
   </form>
+
 </section>
+
+<!-- السجل -->
 
 <section id="view-records" class="view">
 
   <div class="page-heading">
+
     <div>
-      <p class="eyebrow">السجل</p>
-      <h2>كل العمليات</h2>
+      <p class="eyebrow">السجل اليومي</p>
+      <h2 id="recordsDateLabel">—</h2>
     </div>
 
-    <button class="primary-btn small" data-nav="new">＋ جديد</button>
+    <button
+      class="primary-btn small"
+      data-new-record
+    >
+      ＋ جديد
+    </button>
+
   </div>
 
   <div class="filters">
-    <input id="searchInput" type="search" placeholder="بحث...">
+
+    <input
+      id="searchInput"
+      type="search"
+      placeholder="بحث باسم الزبون أو الملاحظات..."
+    >
 
     <select id="typeFilter">
-      <option value="all">كل الجهات</option>
-      <option value="customer">الزبائن</option>
-      <option value="hall">الصالة</option>
+
+      <option value="all">
+        كل الجهات
+      </option>
+
+      <option value="customer">
+        الزبائن
+      </option>
+
+      <option value="hall">
+        الصالة
+      </option>
+
     </select>
 
-    <input id="dateFilter" type="date">
   </div>
 
   <div id="recordsList" class="record-list"></div>
+
 </section>
+
+<!-- التقارير -->
 
 <section id="view-reports" class="view">
 
   <div class="page-heading">
+
     <div>
       <p class="eyebrow">التقارير</p>
-      <h2>تقرير العمليات</h2>
+      <h2>تقارير المصنع</h2>
     </div>
+
+  </div>
+
+  <div class="report-shortcuts">
+
+    <button
+      id="dailyReport"
+      class="secondary-btn"
+    >
+      تقرير اليوم المحدد
+    </button>
+
   </div>
 
   <div class="form-card">
 
     <div class="field">
-      <label>من</label>
+
+      <label>من تاريخ</label>
+
       <input id="fromDate" type="date">
+
     </div>
 
     <div class="field">
-      <label>إلى</label>
+
+      <label>إلى تاريخ</label>
+
       <input id="toDate" type="date">
+
     </div>
 
     <div class="field">
+
       <label>الجهة</label>
+
       <select id="reportType">
+
         <option value="all">الكل</option>
         <option value="customer">الزبائن</option>
         <option value="hall">الصالة</option>
+
       </select>
+
     </div>
 
-    <button class="primary-btn" id="printReport">
-      إنشاء / طباعة PDF
+    <button
+      class="primary-btn"
+      id="printReport"
+    >
+      طباعة / حفظ PDF
     </button>
 
     <p class="hint">
-      التقرير يُنشأ محلياً من السجل الموجود على الجهاز.
+      من نافذة الطباعة اختر «حفظ كـ PDF».
     </p>
+
   </div>
 
-  <div id="reportPreview" class="report-preview"></div>
+  <div
+    id="reportPreview"
+    class="report-preview"
+  ></div>
+
 </section>
+
+<!-- الإعدادات -->
 
 <section id="view-settings" class="view">
 
   <div class="page-heading">
+
     <div>
       <p class="eyebrow">الإعدادات</p>
       <h2>الإعدادات</h2>
     </div>
+
   </div>
 
   <div class="form-card">
 
     <div class="field">
+
       <label>اسم المصنع</label>
-      <input id="factoryName" placeholder="اسم المصنع">
+
+      <input
+        id="factoryName"
+        placeholder="اسم المصنع"
+      >
+
     </div>
 
     <div class="field">
-      <label>حبات الصندوق الكامل</label>
-      <input id="defaultBoxSize" type="number"
-             min="1" step="1" inputmode="numeric">
+
+      <label>
+        عدد الحبات في الصندوق الكامل
+      </label>
+
+      <input
+        id="defaultBoxSize"
+        type="number"
+        min="1"
+        step="1"
+        inputmode="numeric"
+      >
+
     </div>
 
-    <button class="primary-btn" id="saveSettings">
+    <button
+      class="primary-btn"
+      id="saveSettings"
+    >
       حفظ الإعدادات
     </button>
 
     <div class="danger-zone">
+
       <h3>مسح البيانات</h3>
-      <p>سيتم حذف جميع العمليات من هذا الجهاز.</p>
-      <button class="danger-btn" id="clearData">
+
+      <p>
+        سيتم حذف جميع العمليات نهائياً من هذا الجهاز.
+      </p>
+
+      <button
+        class="danger-btn"
+        id="clearData"
+      >
         مسح جميع العمليات
       </button>
+
     </div>
 
   </div>
+
 </section>
 
 </main>
 
 <nav class="bottom-nav">
-  <button data-nav="home" class="nav-item active">
-    <span>⌂</span><small>الرئيسية</small>
+
+  <button
+    data-nav="home"
+    class="nav-item active"
+  >
+    <span>⌂</span>
+    <small>الرئيسية</small>
   </button>
 
-  <button data-nav="records" class="nav-item">
-    <span>☷</span><small>السجل</small>
+  <button
+    data-nav="records"
+    class="nav-item"
+  >
+    <span>☷</span>
+    <small>السجل</small>
   </button>
 
-  <button data-nav="new" class="nav-item nav-main">
-    <span>＋</span><small>جديد</small>
+  <button
+    data-new-record
+    class="nav-item nav-main"
+  >
+    <span>＋</span>
+    <small>جديد</small>
   </button>
 
-  <button data-nav="reports" class="nav-item">
-    <span>▤</span><small>التقارير</small>
+  <button
+    data-nav="reports"
+    class="nav-item"
+  >
+    <span>▤</span>
+    <small>التقارير</small>
   </button>
 
-  <button data-nav="settings" class="nav-item">
-    <span>⚙</span><small>إعدادات</small>
+  <button
+    data-nav="settings"
+    class="nav-item"
+  >
+    <span>⚙</span>
+    <small>إعدادات</small>
   </button>
+
 </nav>
 
 </div>
@@ -287,5 +590,6 @@
 <div id="toast" class="toast"></div>
 
 <script src="app.js"></script>
+
 </body>
 </html>

@@ -1,5 +1,5 @@
-const KEY = "croissant_store_records_v2";
-const SETTINGS_KEY = "croissant_store_settings_v2";
+const KEY = "croissant_store_records_v3";
+const SETTINGS_KEY = "croissant_store_settings_v3";
 
 const DEFAULTS = {
   factoryName: "سجل المصنع",
@@ -9,12 +9,30 @@ const DEFAULTS = {
 let records = loadRecords();
 let settings = loadSettings();
 
+let selectedDate = todayKey();
+let editingId = null;
+
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
+function todayKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function loadRecords() {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    const data = JSON.parse(localStorage.getItem(KEY) || "[]");
+
+    return data.map(record => ({
+      ...record,
+      businessDate:
+        record.businessDate ||
+        (record.createdAt ? record.createdAt.slice(0, 10) : todayKey()),
+      boxSize: record.boxSize || DEFAULTS.boxSize
+    }));
   } catch {
     return [];
   }
@@ -49,19 +67,21 @@ function esc(value) {
   }[char]));
 }
 
-function todayKey(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function formatBusinessDate(date) {
+  return new Intl.DateTimeFormat("ar-LB", {
+    weekday: "long",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric"
+  }).format(new Date(`${date}T12:00:00`));
 }
 
-function formatDate(iso) {
+function formatShortDate(date) {
   return new Intl.DateTimeFormat("ar-LB", {
-    year: "numeric",
+    day: "2-digit",
     month: "2-digit",
-    day: "2-digit"
-  }).format(new Date(iso));
+    year: "numeric"
+  }).format(new Date(`${date}T12:00:00`));
 }
 
 function formatTime(iso) {
@@ -84,6 +104,7 @@ function toast(message) {
   el.classList.add("show");
 
   clearTimeout(window.toastTimer);
+
   window.toastTimer = setTimeout(() => {
     el.classList.remove("show");
   }, 2200);
@@ -110,7 +131,45 @@ $$("[data-nav]").forEach(button => {
   button.addEventListener("click", () => navigate(button.dataset.nav));
 });
 
-/* ---------------- NEW RECORD ---------------- */
+/* =========================
+   DAY NAVIGATION
+========================= */
+
+function changeDay(amount) {
+  const date = new Date(`${selectedDate}T12:00:00`);
+  date.setDate(date.getDate() + amount);
+
+  selectedDate = todayKey(date);
+
+  renderHome();
+  renderRecords();
+}
+
+function setSelectedDate(date) {
+  if (!date) return;
+
+  selectedDate = date;
+
+  renderHome();
+  renderRecords();
+}
+
+$("#previousDay").addEventListener("click", () => changeDay(-1));
+$("#nextDay").addEventListener("click", () => changeDay(1));
+
+$("#selectedDate").addEventListener("change", event => {
+  setSelectedDate(event.target.value);
+});
+
+$("#goToday").addEventListener("click", () => {
+  selectedDate = todayKey();
+  renderHome();
+  renderRecords();
+});
+
+/* =========================
+   NEW / EDIT RECORD
+========================= */
 
 function partialValues() {
   return $$("#partials input").map(input =>
@@ -119,7 +178,10 @@ function partialValues() {
 }
 
 function calculateTotal() {
-  const full = Math.max(0, Number($("#fullBoxes").value) || 0);
+  const full = Math.max(
+    0,
+    Number($("#fullBoxes").value) || 0
+  );
 
   const partial = partialValues().reduce(
     (sum, value) => sum + value,
@@ -168,15 +230,13 @@ function addPartial(value = "") {
     });
 
   $("#partials").appendChild(row);
-
-  setTimeout(() => row.querySelector("input").focus(), 50);
 }
 
-$("#addPartialBtn").addEventListener("click", () => addPartial());
+$("#addPartialBtn").addEventListener("click", () => {
+  addPartial();
+});
 
 $("#fullBoxes").addEventListener("input", calculateTotal);
-
-/* CUSTOMER / HALL */
 
 function updatePartyType() {
   const type = $('input[name="type"]:checked').value;
@@ -190,9 +250,17 @@ function updatePartyType() {
     $("#partyName").value = "صالة";
     $("#partyName").removeAttribute("required");
   } else {
-    $("#partyName").value = "";
+    if (!editingId) {
+      $("#partyName").value = "";
+    }
+
     $("#partyName").setAttribute("required", "");
   }
+
+  const payment =
+    $('input[name="payment"]:checked')?.value || "cash";
+
+  $("#amountField").hidden = payment === "unpaid";
 }
 
 $$('input[name="type"]').forEach(input => {
@@ -202,16 +270,71 @@ $$('input[name="type"]').forEach(input => {
 $$('input[name="payment"]').forEach(input => {
   input.addEventListener("change", () => {
     $("#amountField").hidden =
-      $('input[name="payment"]:checked').value === "unpaid";
+      input.value === "unpaid";
   });
 });
 
-/* SAVE */
+function openNewRecord() {
+  editingId = null;
+
+  $("#formTitle").textContent = "تسجيل خروج";
+  $("#formEyebrow").textContent = "عملية جديدة";
+  $("#saveRecordBtn").textContent = "حفظ العملية";
+
+  resetForm();
+  navigate("new");
+}
+
+function openEditRecord(id) {
+  const record = records.find(r => r.id === id);
+
+  if (!record) return;
+
+  editingId = id;
+  selectedDate = record.businessDate;
+
+  $("#formTitle").textContent = "تعديل العملية";
+  $("#formEyebrow").textContent = "تعديل محفوظ";
+  $("#saveRecordBtn").textContent = "حفظ التعديل";
+
+  $('input[name="type"][value="customer"]').checked =
+    record.type === "customer";
+
+  $('input[name="type"][value="hall"]').checked =
+    record.type === "hall";
+
+  $("#partyName").value =
+    record.type === "hall" ? "صالة" : record.partyName;
+
+  $("#fullBoxes").value = record.fullBoxes || 0;
+
+  $("#partials").innerHTML = "";
+
+  (record.partials || []).forEach(value => {
+    addPartial(value);
+  });
+
+  if (record.payment) {
+    const payment =
+      $(`input[name="payment"][value="${record.payment}"]`);
+
+    if (payment) payment.checked = true;
+  }
+
+  $("#amount").value = record.amount || "";
+  $("#notes").value = record.notes || "";
+
+  updatePartyType();
+  calculateTotal();
+
+  navigate("new");
+}
 
 $("#recordForm").addEventListener("submit", event => {
   event.preventDefault();
 
-  const type = $('input[name="type"]:checked').value;
+  const type =
+    $('input[name="type"]:checked').value;
 
   const partyName =
     type === "hall"
@@ -231,10 +354,13 @@ $("#recordForm").addEventListener("submit", event => {
     return;
   }
 
-  const partials = partialValues().filter(v => v > 0);
+  const partials =
+    partialValues().filter(v => v > 0);
 
   if (partials.some(v => v >= settings.boxSize)) {
-    toast(`الصندوق الناقص أقل من ${settings.boxSize} حبة`);
+    toast(
+      `الصندوق الناقص يجب أن يكون أقل من ${settings.boxSize} حبة`
+    );
     return;
   }
 
@@ -248,32 +374,56 @@ $("#recordForm").addEventListener("submit", event => {
       ? $("#amount").value
       : "";
 
-  const record = {
-    id: crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random()}`,
+  if (editingId) {
+    const record =
+      records.find(r => r.id === editingId);
 
-    createdAt: new Date().toISOString(),
+    if (!record) return;
 
-    type,
-    partyName,
+    record.businessDate = selectedDate;
+    record.type = type;
+    record.partyName = partyName;
+    record.fullBoxes = calc.full;
+    record.partials = partials;
+    record.total = calc.total;
+    record.boxSize = settings.boxSize;
+    record.payment = payment;
+    record.amount = amount;
+    record.notes = $("#notes").value.trim();
+    record.updatedAt = new Date().toISOString();
 
-    fullBoxes: calc.full,
-    partials,
-    total: calc.total,
+    toast("تم تعديل العملية");
+  } else {
+    records.unshift({
+      id: window.crypto?.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`,
 
-    payment,
-    amount,
+      businessDate: selectedDate,
+      createdAt: new Date().toISOString(),
 
-    notes: $("#notes").value.trim()
-  };
+      type,
+      partyName,
 
-  records.unshift(record);
+      fullBoxes: calc.full,
+      partials,
+      total: calc.total,
+      boxSize: settings.boxSize,
+
+      payment,
+      amount,
+
+      notes: $("#notes").value.trim()
+    });
+
+    toast("تم حفظ العملية");
+  }
+
   saveRecords();
 
-  toast("تم حفظ العملية");
-
+  editingId = null;
   resetForm();
+
   navigate("home");
 });
 
@@ -290,23 +440,39 @@ function resetForm() {
 
   updatePartyType();
 
-  $("#amountField").hidden = false;
+  $("#formTitle").textContent = "تسجيل خروج";
+  $("#formEyebrow").textContent = "عملية جديدة";
+  $("#saveRecordBtn").textContent = "حفظ العملية";
 
   calculateTotal();
 }
 
-/* ---------------- RECORD DISPLAY ---------------- */
+$$("[data-new-record]").forEach(button => {
+  button.addEventListener("click", openNewRecord);
+});
+
+/* =========================
+   RECORD DISPLAY
+========================= */
 
 function detailsText(record) {
+  const boxSize =
+    record.boxSize || settings.boxSize;
+
   const full = record.fullBoxes
-    ? `${record.fullBoxes} × ${settings.boxSize}`
+    ? `${record.fullBoxes} × ${boxSize}`
     : "";
 
-  const partial = record.partials?.length
-    ? record.partials.join(" + ")
-    : "";
+  const partial =
+    record.partials?.length
+      ? record.partials.join(" + ")
+      : "";
 
-  return [full, partial].filter(Boolean).join(" + ") || "—";
+  return (
+    [full, partial]
+      .filter(Boolean)
+      .join(" + ") || "—"
+  );
 }
 
 function paymentText(payment) {
@@ -325,15 +491,20 @@ function card(record) {
         <div>
           <div class="record-name">
             ${esc(record.partyName)}
+
             <span class="pill">
-              ${record.type === "customer" ? "زبون" : "صالة"}
+              ${
+                record.type === "customer"
+                  ? "زبون"
+                  : "صالة"
+              }
             </span>
           </div>
 
           <div class="record-meta">
-            ${formatDate(record.createdAt)}
-            ·
             ${formatTime(record.createdAt)}
+            ·
+            ${formatShortDate(record.businessDate)}
           </div>
         </div>
 
@@ -378,102 +549,144 @@ function card(record) {
             : ""
         }
 
-        <button
-          type="button"
-          class="delete-record"
-          data-delete-id="${esc(record.id)}"
-        >
-          حذف العملية
-        </button>
+        <div class="record-actions">
+
+          <button
+            type="button"
+            class="edit-record"
+            data-edit-id="${esc(record.id)}"
+          >
+            تعديل
+          </button>
+
+          <button
+            type="button"
+            class="delete-record"
+            data-delete-id="${esc(record.id)}"
+          >
+            حذف
+          </button>
+
+        </div>
 
       </div>
     </article>
   `;
 }
 
-/* ---------------- HOME ---------------- */
+/* =========================
+   HOME / SELECTED DAY
+========================= */
+
+function dayRecords(date = selectedDate) {
+  return records
+    .filter(record => record.businessDate === date)
+    .sort((a, b) =>
+      new Date(b.createdAt) -
+      new Date(a.createdAt)
+    );
+}
 
 function renderHome() {
-  const today = todayKey();
+  const list = dayRecords();
 
-  const list = records.filter(
-    record => record.createdAt.slice(0, 10) === today
-  );
+  $("#selectedDate").value = selectedDate;
 
-  $("#todayLabel").textContent =
-    new Intl.DateTimeFormat("ar-LB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long"
-    }).format(new Date());
+  $("#dayLabel").textContent =
+    formatBusinessDate(selectedDate);
 
   $("#todayTotal").textContent =
-    list.reduce((sum, record) => sum + record.total, 0)
+    list
+      .reduce((sum, record) => sum + record.total, 0)
       .toLocaleString("ar-LB");
 
   $("#todayCount").textContent =
     list.length.toLocaleString("ar-LB");
 
   $("#todayCustomers").textContent =
-    list.filter(r => r.type === "customer").length
+    list
+      .filter(r => r.type === "customer")
+      .length
       .toLocaleString("ar-LB");
 
   $("#todayHalls").textContent =
-    list.filter(r => r.type === "hall").length
+    list
+      .filter(r => r.type === "hall")
+      .length
       .toLocaleString("ar-LB");
 
   $("#recentRecords").innerHTML =
     list.slice(0, 5).map(card).join("") ||
-    `<div class="empty">لا توجد عمليات اليوم.</div>`;
+    `<div class="empty">لا توجد عمليات في هذا اليوم.</div>`;
 }
 
-/* ---------------- SEARCH ---------------- */
+/* =========================
+   RECORDS
+========================= */
 
 function renderRecords() {
-  const query = $("#searchInput").value
-    .trim()
-    .toLowerCase();
+  const query =
+    $("#searchInput").value.trim().toLowerCase();
 
   const type = $("#typeFilter").value;
-  const date = $("#dateFilter").value;
 
-  const list = records.filter(record => {
-
+  const list = dayRecords().filter(record => {
     const matchesSearch =
       !query ||
-      record.partyName.toLowerCase().includes(query) ||
-      (record.notes || "").toLowerCase().includes(query);
+      record.partyName
+        .toLowerCase()
+        .includes(query) ||
+      (record.notes || "")
+        .toLowerCase()
+        .includes(query);
 
     const matchesType =
-      type === "all" || record.type === type;
+      type === "all" ||
+      record.type === type;
 
-    const matchesDate =
-      !date ||
-      record.createdAt.slice(0, 10) === date;
-
-    return matchesSearch && matchesType && matchesDate;
+    return matchesSearch && matchesType;
   });
+
+  $("#recordsDateLabel").textContent =
+    formatBusinessDate(selectedDate);
 
   $("#recordsList").innerHTML =
     list.map(card).join("") ||
-    `<div class="empty">لا توجد نتائج.</div>`;
+    `<div class="empty">لا توجد نتائج لهذا اليوم.</div>`;
 }
 
-$("#searchInput").addEventListener("input", renderRecords);
-$("#typeFilter").addEventListener("change", renderRecords);
-$("#dateFilter").addEventListener("change", renderRecords);
+$("#searchInput").addEventListener(
+  "input",
+  renderRecords
+);
 
-/* ---------------- DELETE ---------------- */
+$("#typeFilter").addEventListener(
+  "change",
+  renderRecords
+);
+
+/* =========================
+   EDIT / DELETE
+========================= */
 
 document.addEventListener("click", event => {
+  const editButton =
+    event.target.closest("[data-edit-id]");
 
-  const button =
+  if (editButton) {
+    openEditRecord(editButton.dataset.editId);
+    return;
+  }
+
+  const deleteButton =
     event.target.closest("[data-delete-id]");
 
-  if (!button) return;
+  if (!deleteButton) return;
 
   const record =
-    records.find(r => r.id === button.dataset.deleteId);
+    records.find(
+      r => r.id === deleteButton.dataset.deleteId
+    );
 
   if (!record) return;
 
@@ -496,39 +709,109 @@ document.addEventListener("click", event => {
   toast("تم حذف العملية");
 });
 
-/* ---------------- REPORT ---------------- */
+/* =========================
+   REPORTS
+========================= */
 
 function filteredReport(from, to, type) {
-  return records.filter(record => {
+  return records
+    .filter(record => {
+      const date = record.businessDate;
 
-    const date = record.createdAt.slice(0, 10);
-
-    return (
-      (!from || date >= from) &&
-      (!to || date <= to) &&
-      (type === "all" || record.type === type)
+      return (
+        (!from || date >= from) &&
+        (!to || date <= to) &&
+        (type === "all" || record.type === type)
+      );
+    })
+    .sort((a, b) =>
+      a.businessDate.localeCompare(b.businessDate) ||
+      new Date(a.createdAt) - new Date(b.createdAt)
     );
-  });
+}
+
+function setDailyReport() {
+  $("#fromDate").value = selectedDate;
+  $("#toDate").value = selectedDate;
+  renderReportPreview();
 }
 
 function renderReportPreview() {
-
   const from = $("#fromDate").value;
   const to = $("#toDate").value;
   const type = $("#reportType").value;
 
-  const list = filteredReport(from, to, type);
+  const list =
+    filteredReport(from, to, type);
 
-  const total = list.reduce(
-    (sum, record) => sum + record.total,
-    0
-  );
+  const total =
+    list.reduce(
+      (sum, record) => sum + record.total,
+      0
+    );
+
+  const customers =
+    list.filter(r => r.type === "customer");
+
+  const halls =
+    list.filter(r => r.type === "hall");
+
+  const customerTotal =
+    customers.reduce(
+      (sum, record) => sum + record.total,
+      0
+    );
+
+  const hallTotal =
+    halls.reduce(
+      (sum, record) => sum + record.total,
+      0
+    );
+
+  const title =
+    from && to && from === to
+      ? "تقرير يومي"
+      : "تقرير فترة";
 
   $("#reportPreview").innerHTML = `
-    <h3>${esc(settings.factoryName)}</h3>
+    <div class="print-header">
 
-    <div class="record-meta">
-      ${from || "—"} إلى ${to || "—"}
+      <h2>${esc(settings.factoryName)}</h2>
+
+      <h3>${title}</h3>
+
+      <p>
+        ${
+          from && to && from === to
+            ? formatBusinessDate(from)
+            : `${formatShortDate(from)} — ${formatShortDate(to)}`
+        }
+      </p>
+
+    </div>
+
+    <div class="report-summary-grid">
+
+      <div>
+        <span>العمليات</span>
+        <strong>${list.length}</strong>
+      </div>
+
+      <div>
+        <span>إجمالي الحبات</span>
+        <strong>${total.toLocaleString("ar-LB")}</strong>
+      </div>
+
+      <div>
+        <span>الزبائن</span>
+        <strong>${customerTotal.toLocaleString("ar-LB")}</strong>
+      </div>
+
+      <div>
+        <span>الصالة</span>
+        <strong>${hallTotal.toLocaleString("ar-LB")}</strong>
+      </div>
+
     </div>
 
     <table class="report-table">
@@ -540,6 +823,7 @@ function renderReportPreview() {
           <th>النوع</th>
           <th>الكمية</th>
           <th>الدفع</th>
+          <th>ملاحظات</th>
         </tr>
       </thead>
 
@@ -548,10 +832,27 @@ function renderReportPreview() {
         ${
           list.map(record => `
             <tr>
-              <td>${formatDate(record.createdAt)}</td>
-              <td>${esc(record.partyName)}</td>
-              <td>${record.type === "customer" ? "زبون" : "صالة"}</td>
-              <td>${record.total}</td>
+
+              <td>
+                ${formatShortDate(record.businessDate)}
+              </td>
+
+              <td>
+                ${esc(record.partyName)}
+              </td>
+
+              <td>
+                ${
+                  record.type === "customer"
+                    ? "زبون"
+                    : "صالة"
+                }
+              </td>
+
+              <td>
+                ${record.total.toLocaleString("ar-LB")}
+              </td>
+
               <td>
                 ${
                   record.type === "customer"
@@ -559,107 +860,150 @@ function renderReportPreview() {
                     : "—"
                 }
               </td>
+
+              <td>
+                ${esc(record.notes || "—")}
+              </td>
+
             </tr>
           `).join("")
           ||
-          `<tr><td colspan="5">لا توجد عمليات.</td></tr>`
+          `<tr>
+            <td colspan="6">
+              لا توجد عمليات.
+            </td>
+          </tr>`
         }
 
       </tbody>
 
     </table>
 
-    <div class="report-summary">
-      إجمالي العمليات: ${list.length}
-      ·
-      إجمالي الحبات: ${total.toLocaleString("ar-LB")}
+    <div class="report-footer">
+      إجمالي الحبات:
+      <strong>${total.toLocaleString("ar-LB")}</strong>
     </div>
   `;
 }
 
-$("#fromDate").value =
-  todayKey(new Date(Date.now() - 30 * 86400000));
+$("#dailyReport").addEventListener(
+  "click",
+  setDailyReport
+);
 
-$("#toDate").value = todayKey();
+$("#fromDate").addEventListener(
+  "change",
+  renderReportPreview
+);
 
-$("#fromDate").addEventListener("change", renderReportPreview);
-$("#toDate").addEventListener("change", renderReportPreview);
-$("#reportType").addEventListener("change", renderReportPreview);
+$("#toDate").addEventListener(
+  "change",
+  renderReportPreview
+);
 
-$("#printReport").addEventListener("click", () => {
-  renderReportPreview();
-  setTimeout(() => window.print(), 100);
-});
+$("#reportType").addEventListener(
+  "change",
+  renderReportPreview
+);
 
-/* ---------------- SETTINGS ---------------- */
+$("#printReport").addEventListener(
+  "click",
+  () => {
+    renderReportPreview();
+
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  }
+);
+
+/* =========================
+   SETTINGS
+========================= */
 
 function loadSettingsForm() {
-  $("#factoryName").value = settings.factoryName;
-  $("#defaultBoxSize").value = settings.boxSize;
+  $("#factoryName").value =
+    settings.factoryName;
+
+  $("#defaultBoxSize").value =
+    settings.boxSize;
 }
 
-$("#saveSettings").addEventListener("click", () => {
-
-  const box =
-    Math.max(
+$("#saveSettings").addEventListener(
+  "click",
+  () => {
+    const box = Math.max(
       1,
       Number($("#defaultBoxSize").value) || 40
     );
 
-  settings = {
-    factoryName:
-      $("#factoryName").value.trim() || "سجل المصنع",
+    settings = {
+      factoryName:
+        $("#factoryName").value.trim() ||
+        "سجل المصنع",
 
-    boxSize: box
-  };
+      boxSize: box
+    };
 
-  saveSettings();
+    saveSettings();
 
-  $("#boxSizeLabel").textContent = box;
+    toast("تم حفظ الإعدادات");
 
-  toast("تم حفظ الإعدادات");
-  calculateTotal();
-  renderHome();
-});
+    calculateTotal();
+    renderHome();
+  }
+);
 
-$("#clearData").addEventListener("click", () => {
+$("#clearData").addEventListener(
+  "click",
+  () => {
+    if (
+      !confirm(
+        "هل أنت متأكد؟ سيتم حذف جميع العمليات نهائياً من هذا الجهاز."
+      )
+    ) {
+      return;
+    }
 
-  if (!confirm(
-    "هل أنت متأكد؟ سيتم حذف جميع العمليات نهائياً من هذا الجهاز."
-  )) return;
+    records = [];
+    saveRecords();
 
-  records = [];
-  saveRecords();
+    renderHome();
+    renderRecords();
+    renderReportPreview();
 
-  renderHome();
-  renderRecords();
-  renderReportPreview();
+    toast("تم حذف جميع العمليات");
+  }
+);
 
-  toast("تم حذف العمليات");
-});
-
-/* ---------------- PWA ---------------- */
+/* =========================
+   PWA
+========================= */
 
 let deferredPrompt = null;
 
-window.addEventListener("beforeinstallprompt", event => {
-  event.preventDefault();
+window.addEventListener(
+  "beforeinstallprompt",
+  event => {
+    event.preventDefault();
+    deferredPrompt = event;
+    $("#installBtn").hidden = false;
+  }
+);
 
-  deferredPrompt = event;
-  $("#installBtn").hidden = false;
-});
+$("#installBtn").addEventListener(
+  "click",
+  async () => {
+    if (!deferredPrompt) return;
 
-$("#installBtn").addEventListener("click", async () => {
+    deferredPrompt.prompt();
 
-  if (!deferredPrompt) return;
+    await deferredPrompt.userChoice;
 
-  deferredPrompt.prompt();
-
-  await deferredPrompt.userChoice;
-
-  deferredPrompt = null;
-  $("#installBtn").hidden = true;
-});
+    deferredPrompt = null;
+    $("#installBtn").hidden = true;
+  }
+);
 
 if (
   "serviceWorker" in navigator &&
@@ -670,9 +1014,16 @@ if (
     .catch(console.error);
 }
 
-/* ---------------- START ---------------- */
+/* =========================
+   START
+========================= */
+
+$("#fromDate").value = selectedDate;
+$("#toDate").value = selectedDate;
 
 loadSettingsForm();
 updatePartyType();
 calculateTotal();
 renderHome();
+renderRecords();
+renderReportPreview();
