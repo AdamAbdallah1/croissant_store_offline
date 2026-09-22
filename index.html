@@ -1,8 +1,6 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-
 <head>
-
   <meta charset="UTF-8">
 
   <meta
@@ -10,65 +8,26 @@
     content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"
   >
 
-  <meta
-    name="theme-color"
-    content="#111111"
-  >
+  <meta name="theme-color" content="#111111">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="سجل المصنع">
 
-  <meta
-    name="apple-mobile-web-app-capable"
-    content="yes"
-  >
-
-  <meta
-    name="apple-mobile-web-app-status-bar-style"
-    content="black-translucent"
-  >
-
-  <meta
-    name="apple-mobile-web-app-title"
-    content="سجل المصنع"
-  >
-
-  <link
-    rel="manifest"
-    href="manifest.webmanifest"
-  >
-
-  <link
-    rel="apple-touch-icon"
-    href="icon.svg"
-  >
-
-  <link
-    rel="stylesheet"
-    href="styles.css"
-  >
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
 
   <title>سجل المصنع</title>
-
 </head>
 
 <body>
 
 <div class="app-shell">
 
-  <!-- =====================================================
-       TOP BAR
-  ====================================================== -->
-
   <header class="topbar">
-
     <div>
-
-      <p class="eyebrow">
-        سجل حركة المنتجات
-      </p>
-
-      <h1>
-        سجل المصنع
-      </h1>
-
+      <p class="eyebrow">سجل حركة المنتجات</p>
+      <h1>سجل المصنع</h1>
     </div>
 
     <button
@@ -79,265 +38,142 @@
     >
       ＋
     </button>
-
   </header>
-
 
   <main>
 
-    <!-- ===================================================
-         HOME
-    ==================================================== -->
+    <!-- HOME -->
 
-    <section
-      id="view-home"
-      class="view active"
-    >
+    <section id="view-home" class="view active">
 
       <div class="day-selector">
 
-        <button
-          id="previousDay"
-          class="day-btn"
-        >
-          ‹
-        </button>
+        <button id="previousDay" class="day-btn">‹</button>
 
         <div class="selected-day">
-
-          <span>
-            اليوم المحدد
-          </span>
-
-          <strong id="dayLabel">
-            —
-          </strong>
-
-          <input
-            id="selectedDate"
-            type="date"
-          >
-
+          <span>اليوم المحدد</span>
+          <strong id="dayLabel">—</strong>
+          <input id="selectedDate" type="date">
         </div>
 
-        <button
-          id="nextDay"
-          class="day-btn"
-        >
-          ›
-        </button>
+        <button id="nextDay" class="day-btn">›</button>
 
       </div>
 
-      <button
-        id="goToday"
-        class="today-btn"
-      >
+      <button id="goToday" class="today-btn">
         العودة إلى اليوم
       </button>
-
 
       <div class="hero-card">
 
         <div>
-
-          <span class="muted">
-            إجمالي اليوم
-          </span>
-
-          <strong>
-            حركة المنتجات
-          </strong>
-
+          <span class="muted">إجمالي اليوم</span>
+          <strong>حركة المنتجات</strong>
         </div>
 
         <div class="hero-total">
-
-          <span>
-            إجمالي الحبات
-          </span>
-
-          <strong id="todayTotal">
-            0
-          </strong>
-
+          <span>إجمالي الحبات</span>
+          <strong id="todayTotal">0</strong>
         </div>
 
       </div>
-
 
       <div class="stats-grid">
 
         <div class="stat-card">
-
-          <span>
-            العمليات
-          </span>
-
-          <strong id="todayCount">
-            0
-          </strong>
-
+          <span>العمليات</span>
+          <strong id="todayCount">0</strong>
         </div>
 
         <div class="stat-card">
-
-          <span>
-            للزبائن
-          </span>
-
-          <strong id="todayCustomers">
-            0
-          </strong>
-
+          <span>للزبائن</span>
+          <strong id="todayCustomers">0</strong>
         </div>
 
         <div class="stat-card">
-
-          <span>
-            للصالة
-          </span>
-
-          <strong id="todayHalls">
-            0
-          </strong>
-
+          <span>للصالة</span>
+          <strong id="todayHalls">0</strong>
         </div>
 
       </div>
 
-
       <div class="section-heading">
 
         <div>
-
-          <p class="eyebrow">
-            اليوم المحدد
-          </p>
-
-          <h2>
-            العمليات
-          </h2>
-
+          <p class="eyebrow">اليوم المحدد</p>
+          <h2>العمليات</h2>
         </div>
 
-        <button
-          class="text-btn"
-          data-nav="records"
-        >
+        <button class="text-btn" data-nav="records">
           عرض الكل
         </button>
 
       </div>
 
+      <div id="recentRecords" class="record-list"></div>
 
-      <div
-        id="recentRecords"
-        class="record-list"
-      ></div>
-
-
-      <button
-        class="primary-btn large"
-        data-new-record
-      >
+      <button class="primary-btn large" data-new-record>
         ＋ تسجيل خروج جديد
       </button>
 
     </section>
 
 
-    <!-- ===================================================
-         NEW RECORD
-    ==================================================== -->
+    <!-- NEW RECORD -->
 
-    <section
-      id="view-new"
-      class="view"
-    >
+    <section id="view-new" class="view">
 
       <div class="page-heading">
 
-        <button
-          class="back-btn"
-          data-nav="home"
-        >
+        <button class="back-btn" data-nav="home">
           →
         </button>
 
         <div>
-
-          <p
-            class="eyebrow"
-            id="formEyebrow"
-          >
+          <p class="eyebrow" id="formEyebrow">
             عملية جديدة
           </p>
 
           <h2 id="formTitle">
             تسجيل خروج
           </h2>
-
         </div>
 
       </div>
 
-
       <div class="selected-day-form">
-
-        <span>
-          سيتم تسجيل العملية في
-        </span>
-
-        <strong id="formDateLabel">
-          اليوم
-        </strong>
-
+        <span>سيتم تسجيل العملية في</span>
+        <strong id="formDateLabel">اليوم</strong>
       </div>
 
 
-      <form
-        id="recordForm"
-        class="form-card"
-      >
+      <form id="recordForm" class="form-card">
 
-        <!-- TYPE -->
+        <!-- PARTY -->
 
         <div class="field">
 
-          <label>
-            الجهة
-          </label>
+          <label>الجهة</label>
 
           <div class="segmented">
 
             <label>
-
               <input
                 type="radio"
                 name="type"
                 value="customer"
                 checked
               >
-
-              <span>
-                زبون
-              </span>
-
+              <span>زبون</span>
             </label>
 
             <label>
-
               <input
                 type="radio"
                 name="type"
                 value="hall"
               >
-
-              <span>
-                صالة
-              </span>
-
+              <span>صالة</span>
             </label>
 
           </div>
@@ -345,12 +181,7 @@
         </div>
 
 
-        <!-- CUSTOMER -->
-
-        <div
-          id="customerNameField"
-          class="field"
-        >
+        <div id="customerNameField" class="field">
 
           <label for="partyName">
             اسم الزبون
@@ -366,15 +197,9 @@
         </div>
 
 
-        <div
-          id="hallSelected"
-          class="selected-hall"
-          hidden
-        >
+        <div id="hallSelected" class="selected-hall" hidden>
 
-          <span>
-            الجهة
-          </span>
+          <span>الجهة</span>
 
           <strong>
             صالة العرض
@@ -383,22 +208,15 @@
         </div>
 
 
-        <!-- MIXED BOXES -->
+        <!-- BOXES -->
 
         <div class="inventory-section">
 
           <div class="inventory-heading">
 
             <div>
-
-              <p class="eyebrow">
-                المحتوى الفعلي
-              </p>
-
-              <h3>
-                الصناديق
-              </h3>
-
+              <p class="eyebrow">العد الفعلي</p>
+              <h3>الصناديق</h3>
             </div>
 
             <button
@@ -415,20 +233,17 @@
           <div class="inventory-help">
 
             <strong>
-              كل صندوق يُسجل لوحده.
+              كل صندوق تسجله لوحده.
             </strong>
 
             <span>
-              مثال: 20 جبنة + 20 شوكولا = صندوق 40.
+              عدّ محتوى الصندوق الحقيقي ثم أدخل الأرقام.
             </span>
 
           </div>
 
 
-          <div
-            id="mixedBoxes"
-            class="mixed-boxes"
-          ></div>
+          <div id="mixedBoxes" class="mixed-boxes"></div>
 
 
           <div
@@ -440,22 +255,15 @@
         </div>
 
 
-        <!-- LOOSE PRODUCTS -->
+        <!-- LOOSE -->
 
         <div class="inventory-section">
 
           <div class="inventory-heading">
 
             <div>
-
-              <p class="eyebrow">
-                خارج الصندوق
-              </p>
-
-              <h3>
-                حبات مفردة
-              </h3>
-
+              <p class="eyebrow">اختياري</p>
+              <h3>حبات خارج الصندوق</h3>
             </div>
 
             <button
@@ -468,27 +276,13 @@
 
           </div>
 
-
           <div class="inventory-help">
-
             <span>
-              استخدم هذا إذا بقيت كمية خارج الصناديق الكاملة.
+              استخدمها فقط للحبات التي بقيت خارج الصناديق.
             </span>
-
           </div>
 
-
-          <div
-            id="looseProducts"
-            class="loose-products"
-          ></div>
-
-
-          <div
-            id="looseValidationMessage"
-            class="validation-message"
-            hidden
-          ></div>
+          <div id="looseProducts" class="loose-products"></div>
 
         </div>
 
@@ -502,13 +296,8 @@
           </span>
 
           <strong>
-
-            <span id="orderTotal">
-              0
-            </span>
-
+            <span id="orderTotal">0</span>
             حبة
-
           </strong>
 
         </div>
@@ -520,53 +309,36 @@
 
           <div class="field">
 
-            <label>
-              طريقة الدفع
-            </label>
+            <label>طريقة الدفع</label>
 
             <div class="payment-grid">
 
               <label>
-
                 <input
                   type="radio"
                   name="payment"
                   value="cash"
                   checked
                 >
-
-                <span>
-                  نقداً
-                </span>
-
+                <span>نقداً</span>
               </label>
 
               <label>
-
                 <input
                   type="radio"
                   name="payment"
                   value="whish"
                 >
-
-                <span>
-                  Whish
-                </span>
-
+                <span>Whish</span>
               </label>
 
               <label>
-
                 <input
                   type="radio"
                   name="payment"
                   value="unpaid"
                 >
-
-                <span>
-                  غير مدفوع
-                </span>
-
+                <span>غير مدفوع</span>
               </label>
 
             </div>
@@ -574,19 +346,11 @@
           </div>
 
 
-          <div
-            id="amountField"
-            class="field"
-          >
+          <div id="amountField" class="field">
 
             <label for="amount">
-
               المبلغ
-
-              <small>
-                اختياري
-              </small>
-
+              <small>اختياري</small>
             </label>
 
             <input
@@ -613,8 +377,8 @@
 
           <textarea
             id="notes"
-            rows="4"
-            placeholder="مثلاً: طلب إضافي، مرتجع، ملاحظة..."
+            rows="3"
+            placeholder="ملاحظة اختيارية..."
           ></textarea>
 
         </div>
@@ -633,27 +397,15 @@
     </section>
 
 
-    <!-- ===================================================
-         RECORDS
-    ==================================================== -->
+    <!-- RECORDS -->
 
-    <section
-      id="view-records"
-      class="view"
-    >
+    <section id="view-records" class="view">
 
       <div class="page-heading">
 
         <div>
-
-          <p class="eyebrow">
-            السجل اليومي
-          </p>
-
-          <h2 id="recordsDateLabel">
-            —
-          </h2>
-
+          <p class="eyebrow">السجل اليومي</p>
+          <h2 id="recordsDateLabel">—</h2>
         </div>
 
         <button
@@ -675,53 +427,28 @@
         >
 
         <select id="typeFilter">
-
-          <option value="all">
-            كل الجهات
-          </option>
-
-          <option value="customer">
-            الزبائن
-          </option>
-
-          <option value="hall">
-            الصالة
-          </option>
-
+          <option value="all">كل الجهات</option>
+          <option value="customer">الزبائن</option>
+          <option value="hall">الصالة</option>
         </select>
 
       </div>
 
 
-      <div
-        id="recordsList"
-        class="record-list"
-      ></div>
+      <div id="recordsList" class="record-list"></div>
 
     </section>
 
 
-    <!-- ===================================================
-         REPORTS
-    ==================================================== -->
+    <!-- REPORTS -->
 
-    <section
-      id="view-reports"
-      class="view"
-    >
+    <section id="view-reports" class="view">
 
       <div class="page-heading">
 
         <div>
-
-          <p class="eyebrow">
-            التقارير
-          </p>
-
-          <h2>
-            تقارير المصنع
-          </h2>
-
+          <p class="eyebrow">التقارير</p>
+          <h2>تقارير المصنع</h2>
         </div>
 
       </div>
@@ -729,10 +456,7 @@
 
       <div class="report-shortcuts">
 
-        <button
-          id="dailyReport"
-          class="secondary-btn"
-        >
+        <button id="dailyReport" class="secondary-btn">
           تقرير اليوم المحدد
         </button>
 
@@ -742,53 +466,23 @@
       <div class="form-card">
 
         <div class="field">
-
-          <label>
-            من تاريخ
-          </label>
-
-          <input
-            id="fromDate"
-            type="date"
-          >
-
+          <label>من تاريخ</label>
+          <input id="fromDate" type="date">
         </div>
 
+        <div class="field">
+          <label>إلى تاريخ</label>
+          <input id="toDate" type="date">
+        </div>
 
         <div class="field">
 
-          <label>
-            إلى تاريخ
-          </label>
-
-          <input
-            id="toDate"
-            type="date"
-          >
-
-        </div>
-
-
-        <div class="field">
-
-          <label>
-            الجهة
-          </label>
+          <label>الجهة</label>
 
           <select id="reportType">
-
-            <option value="all">
-              الكل
-            </option>
-
-            <option value="customer">
-              الزبائن
-            </option>
-
-            <option value="hall">
-              الصالة
-            </option>
-
+            <option value="all">الكل</option>
+            <option value="customer">الزبائن</option>
+            <option value="hall">الصالة</option>
           </select>
 
         </div>
@@ -800,7 +494,6 @@
         >
           طباعة / حفظ PDF
         </button>
-
 
         <p class="hint">
           من نافذة الطباعة اختر «حفظ كـ PDF».
@@ -817,27 +510,15 @@
     </section>
 
 
-    <!-- ===================================================
-         SETTINGS
-    ==================================================== -->
+    <!-- SETTINGS -->
 
-    <section
-      id="view-settings"
-      class="view"
-    >
+    <section id="view-settings" class="view">
 
       <div class="page-heading">
 
         <div>
-
-          <p class="eyebrow">
-            الإعدادات
-          </p>
-
-          <h2>
-            الإعدادات
-          </h2>
-
+          <p class="eyebrow">الإعدادات</p>
+          <h2>الإعدادات</h2>
         </div>
 
       </div>
@@ -864,15 +545,8 @@
           <div class="settings-section-title">
 
             <div>
-
-              <p class="eyebrow">
-                أنواع المنتجات
-              </p>
-
-              <h3>
-                أحجام الصناديق
-              </h3>
-
+              <p class="eyebrow">الصناديق</p>
+              <h3>حجم كل صندوق</h3>
             </div>
 
           </div>
@@ -880,55 +554,51 @@
 
           <div class="settings-product">
 
-            <span>
-              كرواسون جبنة
-            </span>
+            <div>
+              <strong>كرواسون</strong>
 
-            <strong>
-              40
-            </strong>
+              <small>
+                جبنة · شوكولا · زعتر
+              </small>
+            </div>
+
+            <input
+              id="croissantBoxSize"
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              value="40"
+            >
 
           </div>
+
 
           <div class="settings-product">
 
-            <span>
-              كرواسون شوكولا
-            </span>
+            <div>
+              <strong>دونات</strong>
 
-            <strong>
-              40
-            </strong>
+              <small>
+                صندوق دونات
+              </small>
+            </div>
 
-          </div>
-
-          <div class="settings-product">
-
-            <span>
-              كرواسون زعتر
-            </span>
-
-            <strong>
-              40
-            </strong>
+            <input
+              id="donutBoxSize"
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              value="8"
+            >
 
           </div>
 
-          <div class="settings-product">
-
-            <span>
-              دونات
-            </span>
-
-            <strong>
-              8
-            </strong>
-
-          </div>
 
           <p class="hint">
-            الكرواسون يمكن خلط أنواعه داخل صندوق واحد حتى 40 حبة.
-            الدونات لها صناديق 8 حبات ولا تُخلط مع الكرواسون.
+            داخل صندوق الكرواسون يمكنك خلط الجبنة والشوكولا والزعتر.
+            الدونات لا تُخلط مع الكرواسون.
           </p>
 
         </div>
@@ -968,9 +638,7 @@
   </main>
 
 
-  <!-- =====================================================
-       BOTTOM NAV
-  ====================================================== -->
+  <!-- BOTTOM NAV -->
 
   <nav class="bottom-nav">
 
@@ -978,94 +646,49 @@
       data-nav="home"
       class="nav-item active"
     >
-
-      <span>
-        ⌂
-      </span>
-
-      <small>
-        الرئيسية
-      </small>
-
+      <span>⌂</span>
+      <small>الرئيسية</small>
     </button>
-
 
     <button
       data-nav="records"
       class="nav-item"
     >
-
-      <span>
-        ☷
-      </span>
-
-      <small>
-        السجل
-      </small>
-
+      <span>☷</span>
+      <small>السجل</small>
     </button>
-
 
     <button
       data-new-record
       class="nav-item nav-main"
     >
-
-      <span>
-        ＋
-      </span>
-
-      <small>
-        جديد
-      </small>
-
+      <span>＋</span>
+      <small>جديد</small>
     </button>
-
 
     <button
       data-nav="reports"
       class="nav-item"
     >
-
-      <span>
-        ▤
-      </span>
-
-      <small>
-        التقارير
-      </small>
-
+      <span>▤</span>
+      <small>التقارير</small>
     </button>
-
 
     <button
       data-nav="settings"
       class="nav-item"
     >
-
-      <span>
-        ⚙
-      </span>
-
-      <small>
-        إعدادات
-      </small>
-
+      <span>⚙</span>
+      <small>إعدادات</small>
     </button>
 
   </nav>
 
 </div>
 
-
-<div
-  id="toast"
-  class="toast"
-></div>
-
+<div id="toast" class="toast"></div>
 
 <script src="app.js"></script>
 
 </body>
-
 </html>

@@ -1,56 +1,84 @@
-const KEY = "croissant_store_records_v4";
-const SETTINGS_KEY = "croissant_store_settings_v4";
+const KEY = "croissant_store_records_v5";
+const SETTINGS_KEY = "croissant_store_settings_v5";
 
 const DEFAULTS = {
   factoryName: "سجل المصنع",
-
   products: [
     {
-      id: "cheese",
-      name: "كرواسون جبنة",
+      id: "croissant",
+      name: "كرواسون",
       group: "croissant",
-      boxSize: 40
-    },
-    {
-      id: "chocolate",
-      name: "كرواسون شوكولا",
-      group: "croissant",
-      boxSize: 40
-    },
-    {
-      id: "zaatar",
-      name: "كرواسون زعتر",
-      group: "croissant",
-      boxSize: 40
+      boxSize: 40,
+      types: [
+        { id: "cheese", name: "جبنة" },
+        { id: "chocolate", name: "شوكولا" },
+        { id: "zaatar", name: "زعتر" }
+      ]
     },
     {
       id: "donut",
       name: "دونات",
       group: "donut",
-      boxSize: 8
+      boxSize: 8,
+      types: [
+        { id: "donut", name: "دونات" }
+      ]
     }
   ]
 };
 
 let records = loadRecords();
 let settings = loadSettings();
-
 let selectedDate = todayKey();
 let editingId = null;
 
-const $ = selector => document.querySelector(selector);
-const $$ = selector => [...document.querySelectorAll(selector)];
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 
-/* =========================================================
-   DATE
-========================================================= */
+/* =========================
+   BASIC
+========================= */
 
 function todayKey(date = new Date()) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
-
   return `${y}-${m}-${d}`;
+}
+
+function uid(prefix = "id") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  }[c]));
+}
+
+function toast(message) {
+  const el = $("#toast");
+  if (!el) return;
+
+  el.textContent = message;
+  el.classList.add("show");
+  clearTimeout(window.toastTimer);
+
+  window.toastTimer = setTimeout(
+    () => el.classList.remove("show"),
+    2300
+  );
+}
+
+function money(value) {
+  if (value === "" || value == null) return "";
+  return Number(value).toLocaleString("en-US", {
+    maximumFractionDigits: 2
+  });
 }
 
 function formatBusinessDate(date) {
@@ -72,25 +100,25 @@ function formatShortDate(date) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
-function formatTime(iso) {
-  if (!iso) return "—";
+function formatTime(date) {
+  if (!date) return "—";
 
   return new Intl.DateTimeFormat("ar-LB", {
     hour: "2-digit",
     minute: "2-digit"
-  }).format(new Date(iso));
+  }).format(new Date(date));
 }
 
-/* =========================================================
+/* =========================
    STORAGE
-========================================================= */
+========================= */
 
 function cloneDefaults() {
   return {
     factoryName: DEFAULTS.factoryName,
-
-    products: DEFAULTS.products.map(product => ({
-      ...product
+    products: DEFAULTS.products.map(p => ({
+      ...p,
+      types: p.types.map(t => ({ ...t }))
     }))
   };
 }
@@ -98,20 +126,18 @@ function cloneDefaults() {
 function loadSettings() {
   try {
     const saved = JSON.parse(
-      localStorage.getItem(SETTINGS_KEY) || "{}"
+      localStorage.getItem(SETTINGS_KEY) || "null"
     );
+
+    if (!saved) return cloneDefaults();
 
     const defaults = cloneDefaults();
 
     return {
-      ...defaults,
-      ...saved,
-
-      products:
-        Array.isArray(saved.products) &&
-        saved.products.length
-          ? saved.products
-          : defaults.products
+      factoryName: saved.factoryName || defaults.factoryName,
+      products: Array.isArray(saved.products) && saved.products.length
+        ? saved.products
+        : defaults.products
     };
   } catch {
     return cloneDefaults();
@@ -119,199 +145,166 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  localStorage.setItem(
-    SETTINGS_KEY,
-    JSON.stringify(settings)
-  );
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
 function normalizeRecord(record) {
   return {
     ...record,
-
     businessDate:
       record.businessDate ||
-      (
-        record.createdAt
-          ? record.createdAt.slice(0, 10)
-          : todayKey()
-      ),
-
-    boxes:
-      Array.isArray(record.boxes)
-        ? record.boxes
-        : [],
-
-    loose:
-      Array.isArray(record.loose)
-        ? record.loose
-        : [],
-
-    total:
-      Number(record.total) || 0
+      (record.createdAt
+        ? record.createdAt.slice(0, 10)
+        : todayKey()),
+    boxes: Array.isArray(record.boxes) ? record.boxes : [],
+    loose: Array.isArray(record.loose) ? record.loose : [],
+    total: Number(record.total) || 0
   };
+}
+
+function migrateOldRecord(record) {
+  if (Array.isArray(record.boxes)) {
+    return normalizeRecord(record);
+  }
+
+  const boxes = [];
+  const size = Number(record.boxSize) || 40;
+  const full = Number(record.fullBoxes) || 0;
+  const partials = Array.isArray(record.partials)
+    ? record.partials
+    : [];
+
+  for (let i = 0; i < full; i++) {
+    boxes.push({
+      id: uid("box"),
+      productId: "croissant",
+      boxSize: size,
+      items: [{ typeId: "legacy", quantity: size }],
+      total: size
+    });
+  }
+
+  partials.forEach(qty => {
+    if (Number(qty) > 0) {
+      boxes.push({
+        id: uid("box"),
+        productId: "croissant",
+        boxSize: size,
+        items: [{ typeId: "legacy", quantity: Number(qty) }],
+        total: Number(qty)
+      });
+    }
+  });
+
+  return normalizeRecord({
+    ...record,
+    boxes,
+    loose: [],
+    total: Number(record.total) || 0,
+    legacy: true
+  });
 }
 
 function loadRecords() {
   try {
-    const data = JSON.parse(
-      localStorage.getItem(KEY) || "[]"
+    const saved = JSON.parse(
+      localStorage.getItem(KEY) || "null"
     );
 
-    if (!Array.isArray(data)) {
-      return [];
+    if (Array.isArray(saved)) {
+      return saved.map(normalizeRecord);
     }
 
-    return data.map(normalizeRecord);
+    /* Import the previous v4 structure if it exists. */
+    const old = JSON.parse(
+      localStorage.getItem("croissant_store_records_v4") || "[]"
+    );
+
+    if (Array.isArray(old) && old.length) {
+      const migrated = old.map(migrateOldRecord);
+      localStorage.setItem(KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+
+    return [];
   } catch {
     return [];
   }
 }
 
 function saveRecords() {
-  localStorage.setItem(
-    KEY,
-    JSON.stringify(records)
-  );
+  localStorage.setItem(KEY, JSON.stringify(records));
 }
 
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function esc(value) {
-  return String(value ?? "").replace(
-    /[&<>"']/g,
-    char => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    }[char])
-  );
-}
-
-function money(value) {
-  if (value === "" || value == null) {
-    return "";
-  }
-
-  return Number(value).toLocaleString("en-US", {
-    maximumFractionDigits: 2
-  });
-}
-
-function uid(prefix = "id") {
-  return `${prefix}-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 9)}`;
-}
-
-function toast(message) {
-  const el = $("#toast");
-
-  if (!el) return;
-
-  el.textContent = message;
-  el.classList.add("show");
-
-  clearTimeout(window.toastTimer);
-
-  window.toastTimer = setTimeout(() => {
-    el.classList.remove("show");
-  }, 2400);
-}
+/* =========================
+   PRODUCTS
+========================= */
 
 function productById(id) {
-  return (
-    settings.products.find(
-      product => product.id === id
-    ) || null
-  );
+  return settings.products.find(p => p.id === id) || null;
 }
 
 function productName(id) {
-  return (
-    productById(id)?.name ||
-    "منتج غير محدد"
-  );
+  return productById(id)?.name || "غير محدد";
 }
 
-function productBoxSize(id) {
-  return (
-    Number(productById(id)?.boxSize) ||
-    40
-  );
+function productSize(id) {
+  return Number(productById(id)?.boxSize) || 40;
 }
 
-function productGroup(id) {
-  return (
-    productById(id)?.group ||
-    "croissant"
-  );
+function productTypes(id) {
+  return productById(id)?.types || [];
 }
 
-/* =========================================================
+function typeName(productId, typeId) {
+  const type = productTypes(productId).find(t => t.id === typeId);
+  return type?.name || (typeId === "legacy" ? "قديم / غير محدد" : "غير محدد");
+}
+
+function productOptions(selected = "") {
+  return settings.products.map(p => `
+    <option value="${esc(p.id)}" ${p.id === selected ? "selected" : ""}>
+      ${esc(p.name)} — ${p.boxSize} حبة
+    </option>
+  `).join("");
+}
+
+/* =========================
    NAVIGATION
-========================================================= */
+========================= */
 
 function navigate(view) {
-  $$(".view").forEach(viewElement => {
-    viewElement.classList.toggle(
-      "active",
-      viewElement.id === `view-${view}`
-    );
-  });
+  $$(".view").forEach(el =>
+    el.classList.toggle("active", el.id === `view-${view}`)
+  );
 
-  $$(".nav-item").forEach(item => {
-    item.classList.toggle(
-      "active",
-      item.dataset.nav === view
-    );
-  });
+  $$(".nav-item").forEach(el =>
+    el.classList.toggle("active", el.dataset.nav === view)
+  );
 
-  if (view === "home") {
-    renderHome();
-  }
+  if (view === "home") renderHome();
+  if (view === "records") renderRecords();
+  if (view === "reports") renderReportPreview();
+  if (view === "settings") loadSettingsForm();
 
-  if (view === "records") {
-    renderRecords();
-  }
-
-  if (view === "reports") {
-    renderReportPreview();
-  }
-
-  if (view === "settings") {
-    loadSettingsForm();
-  }
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-$$("[data-nav]").forEach(button => {
-  button.addEventListener("click", () => {
-    navigate(button.dataset.nav);
-  });
-});
+$$("[data-nav]").forEach(btn =>
+  btn.addEventListener("click", () => navigate(btn.dataset.nav))
+);
 
-/* =========================================================
-   DAY NAVIGATION
-========================================================= */
+/* =========================
+   DATE
+========================= */
+
+function updateFormDate() {
+  $("#formDateLabel").textContent = formatBusinessDate(selectedDate);
+}
 
 function changeDay(amount) {
-  const date = new Date(
-    `${selectedDate}T12:00:00`
-  );
-
-  date.setDate(
-    date.getDate() + amount
-  );
-
+  const date = new Date(`${selectedDate}T12:00:00`);
+  date.setDate(date.getDate() + amount);
   selectedDate = todayKey(date);
 
   updateFormDate();
@@ -323,574 +316,217 @@ function setSelectedDate(date) {
   if (!date) return;
 
   selectedDate = date;
-
   updateFormDate();
   renderHome();
   renderRecords();
 }
 
-$("#previousDay").addEventListener(
-  "click",
-  () => changeDay(-1)
+$("#previousDay").addEventListener("click", () => changeDay(-1));
+$("#nextDay").addEventListener("click", () => changeDay(1));
+
+$("#selectedDate").addEventListener("change", e =>
+  setSelectedDate(e.target.value)
 );
 
-$("#nextDay").addEventListener(
-  "click",
-  () => changeDay(1)
-);
+$("#goToday").addEventListener("click", () => {
+  selectedDate = todayKey();
+  updateFormDate();
+  renderHome();
+  renderRecords();
+});
 
-$("#selectedDate").addEventListener(
-  "change",
-  event => {
-    setSelectedDate(
-      event.target.value
-    );
-  }
-);
+/* =========================
+   BOX UI
+========================= */
 
-$("#goToday").addEventListener(
-  "click",
-  () => {
-    selectedDate = todayKey();
+function createBox(data = {}) {
+  const box = document.createElement("div");
+  box.className = "mixed-box";
 
-    updateFormDate();
-    renderHome();
-    renderRecords();
-  }
-);
+  const productId = data.productId || "croissant";
+  const product = productById(productId) || DEFAULTS.products[0];
 
-function updateFormDate() {
-  $("#formDateLabel").textContent =
-    formatBusinessDate(selectedDate);
-}
-
-/* =========================================================
-   PRODUCT OPTIONS
-========================================================= */
-
-function productOptions(selected = "") {
-  return settings.products
-    .map(product => `
-      <option
-        value="${esc(product.id)}"
-        ${
-          product.id === selected
-            ? "selected"
-            : ""
-        }
-      >
-        ${esc(product.name)}
-      </option>
-    `)
-    .join("");
-}
-
-/* =========================================================
-   BOX BUILDER
-========================================================= */
-
-function addBoxItem(
-  boxElement,
-  productId = "",
-  quantity = ""
-) {
-  const row =
-    document.createElement("div");
-
-  row.className =
-    "box-item-row";
-
-  row.innerHTML = `
-    <select class="box-product">
-      <option value="">
-        اختر النوع
-      </option>
-
-      ${productOptions(productId)}
-    </select>
-
-    <input
-      class="box-quantity"
-      type="number"
-      min="1"
-      step="1"
-      inputmode="numeric"
-      placeholder="العدد"
-      value="${esc(quantity)}"
-    >
-
-    <button
-      type="button"
-      class="remove-box-item"
-      aria-label="حذف"
-    >
-      ×
-    </button>
-  `;
-
-  row
-    .querySelector(".box-product")
-    .addEventListener(
-      "change",
-      () => {
-        validateBoxes();
-      }
-    );
-
-  row
-    .querySelector(".box-quantity")
-    .addEventListener(
-      "input",
-      () => {
-        validateBoxes();
-      }
-    );
-
-  row
-    .querySelector(".remove-box-item")
-    .addEventListener(
-      "click",
-      () => {
-        row.remove();
-        validateBoxes();
-      }
-    );
-
-  boxElement
-    .querySelector(".box-items")
-    .appendChild(row);
-}
-
-function addBox(boxData = null) {
-  const box =
-    document.createElement("div");
-
-  box.className =
-    "mixed-box";
-
-  const boxNumber =
-    $("#mixedBoxes").children.length + 1;
+  box.dataset.product = product.id;
 
   box.innerHTML = `
     <div class="mixed-box-header">
-
       <div>
-        <span class="box-eyebrow">
-          صندوق
-        </span>
-
-        <strong class="box-number">
-          ${boxNumber}
-        </strong>
+        <span class="box-eyebrow">صندوق</span>
+        <strong class="box-number">1</strong>
       </div>
 
       <div class="box-header-actions">
-
-        <button
-          type="button"
-          class="duplicate-box"
-        >
-          نسخ
-        </button>
-
-        <button
-          type="button"
-          class="remove-box"
-        >
-          حذف
-        </button>
-
+        <button type="button" class="duplicate-box">نسخ</button>
+        <button type="button" class="remove-box">حذف</button>
       </div>
-
     </div>
 
-    <div class="box-items"></div>
+    <div class="field box-product-field">
+      <label>نوع الصندوق</label>
+      <select class="box-product">
+        ${productOptions(product.id)}
+      </select>
+    </div>
 
-    <button
-      type="button"
-      class="add-box-item"
-    >
-      ＋ إضافة نوع
-    </button>
+    <div class="box-count-list"></div>
 
     <div class="box-total-row">
-
       <div>
-        <span>
-          مجموع الصندوق
-        </span>
-
-        <small class="box-status">
-          أدخل المحتوى
-        </small>
+        <span>مجموع الصندوق</span>
+        <small class="box-status">أدخل الكمية</small>
       </div>
 
       <strong>
-        <span class="box-total">
-          0
-        </span>
+        <span class="box-total">0</span>
         /
-        <span class="box-max">
-          40
-        </span>
+        <span class="box-max">${product.boxSize}</span>
         حبة
       </strong>
-
     </div>
   `;
 
   $("#mixedBoxes").appendChild(box);
 
-  box
-    .querySelector(".remove-box")
-    .addEventListener(
-      "click",
-      () => {
-        box.remove();
+  box.querySelector(".box-product").addEventListener(
+    "change",
+    () => {
+      box.dataset.product = box.querySelector(".box-product").value;
+      renderBoxInputs(box);
+      validateAll();
+    }
+  );
 
-        renumberBoxes();
-        validateBoxes();
-      }
-    );
+  box.querySelector(".remove-box").addEventListener(
+    "click",
+    () => {
+      box.remove();
+      renumberBoxes();
+      validateAll();
+    }
+  );
 
-  box
-    .querySelector(".duplicate-box")
-    .addEventListener(
-      "click",
-      () => {
-        const source =
-          readSingleBox(box);
+  box.querySelector(".duplicate-box").addEventListener(
+    "click",
+    () => {
+      const copy = readBox(box);
+      createBox(copy);
+      renumberBoxes();
+      validateAll();
+    }
+  );
 
-        addBox({
-          items: source.items
-        });
-      }
-    );
+  renderBoxInputs(box, data.items || []);
+  renumberBoxes();
+  validateAll();
 
-  box
-    .querySelector(".add-box-item")
-    .addEventListener(
-      "click",
-      () => {
-        addBoxItem(box);
-        validateBoxes();
-      }
-    );
+  return box;
+}
 
-  if (
-    boxData &&
-    Array.isArray(boxData.items) &&
-    boxData.items.length
-  ) {
-    boxData.items.forEach(item => {
-      addBoxItem(
-        box,
-        item.productId,
-        item.quantity
-      );
-    });
-  } else {
-    addBoxItem(box);
-  }
+function renderBoxInputs(box, oldItems = []) {
+  const productId = box.querySelector(".box-product").value;
+  const types = productTypes(productId);
+  const container = box.querySelector(".box-count-list");
 
-  updateBoxUI(box);
-  validateBoxes();
+  const oldMap = {};
+
+  oldItems.forEach(item => {
+    oldMap[item.typeId] = Number(item.quantity) || 0;
+  });
+
+  container.innerHTML = types.map(type => `
+    <div class="box-item-row">
+      <label>${esc(type.name)}</label>
+
+      <input
+        class="box-quantity"
+        data-type="${esc(type.id)}"
+        type="number"
+        min="0"
+        max="${productSize(productId)}"
+        step="1"
+        inputmode="numeric"
+        placeholder="0"
+        value="${oldMap[type.id] || ""}"
+      >
+
+      <span>حبة</span>
+    </div>
+  `).join("");
+
+  container.querySelectorAll(".box-quantity").forEach(input => {
+    input.addEventListener("input", () => validateAll());
+  });
+}
+
+function readBox(box) {
+  const productId = box.querySelector(".box-product").value;
+
+  const items = [...box.querySelectorAll(".box-quantity")]
+    .map(input => ({
+      typeId: input.dataset.type,
+      quantity: Math.max(0, Number(input.value) || 0)
+    }))
+    .filter(item => item.quantity > 0);
+
+  return {
+    id: uid("box"),
+    productId,
+    boxSize: productSize(productId),
+    items,
+    total: items.reduce((sum, item) => sum + item.quantity, 0)
+  };
+}
+
+function getBoxes() {
+  return $$("#mixedBoxes .mixed-box").map(readBox);
 }
 
 function renumberBoxes() {
-  $$("#mixedBoxes .mixed-box")
-    .forEach((box, index) => {
-      box.querySelector(
-        ".box-number"
-      ).textContent = index + 1;
-    });
+  $$("#mixedBoxes .mixed-box").forEach((box, i) => {
+    box.querySelector(".box-number").textContent = i + 1;
+  });
 }
 
-function readSingleBox(box) {
-  const items = [];
+function updateBox(box) {
+  const data = readBox(box);
+  const max = data.boxSize;
+  const total = data.total;
 
-  box
-    .querySelectorAll(".box-item-row")
-    .forEach(row => {
-      const productId =
-        row.querySelector(
-          ".box-product"
-        ).value;
-
-      const quantity =
-        Math.max(
-          0,
-          Number(
-            row.querySelector(
-              ".box-quantity"
-            ).value
-          ) || 0
-        );
-
-      if (
-        productId &&
-        quantity > 0
-      ) {
-        items.push({
-          productId,
-          quantity
-        });
-      }
-    });
-
-  return {
-    items
-  };
-}
-
-function getBoxData() {
-  return $$("#mixedBoxes .mixed-box")
-    .map(box => {
-      const data =
-        readSingleBox(box);
-
-      const firstProduct =
-        data.items[0]?.productId || null;
-
-      return {
-        id: uid("box"),
-        productId: firstProduct,
-        boxSize: firstProduct
-          ? productBoxSize(firstProduct)
-          : 40,
-        items: data.items,
-        total: data.items.reduce(
-          (sum, item) =>
-            sum +
-            Number(item.quantity || 0),
-          0
-        )
-      };
-    });
-}
-
-function calculateBoxTotal(box) {
-  return [
-    ...box.querySelectorAll(
-      ".box-quantity"
-    )
-  ].reduce(
-    (sum, input) =>
-      sum +
-      Math.max(
-        0,
-        Number(input.value) || 0
-      ),
-    0
-  );
-}
-
-function maxBoxSizeForBox(box) {
-  const selectedProducts = [
-    ...box.querySelectorAll(
-      ".box-product"
-    )
-  ]
-    .map(select => select.value)
-    .filter(Boolean);
-
-  if (!selectedProducts.length) {
-    return 40;
-  }
-
-  const groups = [
-    ...new Set(
-      selectedProducts.map(
-        productGroup
-      )
-    )
-  ];
-
-  if (groups.length > 1) {
-    return null;
-  }
-
-  return productBoxSize(
-    selectedProducts[0]
-  );
-}
-
-function updateBoxUI(box) {
-  const total =
-    calculateBoxTotal(box);
-
-  const max =
-    maxBoxSizeForBox(box);
-
-  const totalElement =
-    box.querySelector(
-      ".box-total"
-    );
-
-  const maxElement =
-    box.querySelector(
-      ".box-max"
-    );
-
-  const statusElement =
-    box.querySelector(
-      ".box-status"
-    );
-
-  totalElement.textContent =
+  box.querySelector(".box-total").textContent =
     total.toLocaleString("ar-LB");
 
-  if (max) {
-    maxElement.textContent =
-      max.toLocaleString("ar-LB");
-  } else {
-    maxElement.textContent =
-      "—";
-  }
+  box.querySelector(".box-max").textContent =
+    max.toLocaleString("ar-LB");
 
-  if (!total) {
-    statusElement.textContent =
-      "أدخل المحتوى";
-  } else if (max === null) {
-    statusElement.textContent =
-      "منتجات غير متوافقة";
+  let status = "أدخل الكمية";
+
+  if (total === 0) {
+    status = "فارغ";
   } else if (total > max) {
-    statusElement.textContent =
-      `تجاوز الحد بـ ${total - max}`;
+    status = `زيادة ${total - max} حبة`;
   } else if (total === max) {
-    statusElement.textContent =
-      "صندوق ممتلئ";
+    status = "صندوق ممتلئ ✓";
   } else {
-    statusElement.textContent =
-      `متبقي ${max - total} حبة`;
+    status = `متبقي ${max - total} حبة`;
   }
+
+  box.querySelector(".box-status").textContent = status;
+
+  box.classList.toggle("box-invalid", total > max);
 }
 
-function validateBoxes() {
-  let total = 0;
-  let valid = true;
-  let message = "";
+/* =========================
+   LOOSE
+========================= */
 
-  $$("#mixedBoxes .mixed-box")
-    .forEach(box => {
-      const boxTotal =
-        calculateBoxTotal(box);
-
-      const max =
-        maxBoxSizeForBox(box);
-
-      const selectedProducts = [
-        ...box.querySelectorAll(
-          ".box-product"
-        )
-      ]
-        .map(select => select.value)
-        .filter(Boolean);
-
-      const duplicateProducts =
-        selectedProducts.filter(
-          (id, index) =>
-            selectedProducts.indexOf(id) !==
-            index
-        );
-
-      if (
-        duplicateProducts.length
-      ) {
-        valid = false;
-
-        message =
-          "لا تكرر نفس النوع داخل الصندوق.";
-      }
-
-      if (max === null) {
-        valid = false;
-
-        message =
-          "لا يمكن خلط الكرواسون والدونات في نفس الصندوق.";
-      }
-
-      if (
-        max &&
-        boxTotal > max
-      ) {
-        valid = false;
-
-        message =
-          `الصندوق يحتوي ${boxTotal} حبة، والحد الأقصى ${max} حبة.`;
-      }
-
-      total += boxTotal;
-
-      updateBoxUI(box);
-
-      box.classList.toggle(
-        "box-invalid",
-        Boolean(
-          duplicateProducts.length ||
-          max === null ||
-          (
-            max &&
-            boxTotal > max
-          )
-        )
-      );
-    });
-
-  $$("#looseProducts .loose-product-row")
-    .forEach(row => {
-      const quantity =
-        Math.max(
-          0,
-          Number(
-            row.querySelector(
-              ".loose-quantity"
-            ).value
-          ) || 0
-        );
-
-      total += quantity;
-    });
-
-  $("#orderTotal").textContent =
-    total.toLocaleString("ar-LB");
-
-  $("#boxValidationMessage")
-    .textContent = message;
-
-  $("#boxValidationMessage")
-    .hidden = !message;
-
-  return {
-    valid,
-    total,
-    message
-  };
-}
-
-/* =========================================================
-   LOOSE PRODUCTS
-========================================================= */
-
-function addLooseProduct(
-  productId = "",
-  quantity = ""
-) {
-  const row =
-    document.createElement("div");
-
-  row.className =
-    "loose-product-row";
+function addLooseRow(data = {}) {
+  const row = document.createElement("div");
+  row.className = "loose-product-row";
 
   row.innerHTML = `
     <select class="loose-product">
-
-      <option value="">
-        اختر النوع
-      </option>
-
-      ${productOptions(productId)}
-
+      <option value="">اختر النوع</option>
+      ${productOptions(data.productId || "")}
     </select>
 
     <input
@@ -899,823 +535,404 @@ function addLooseProduct(
       min="1"
       step="1"
       inputmode="numeric"
-      placeholder="عدد الحبات"
-      value="${esc(quantity)}"
+      placeholder="العدد"
+      value="${data.quantity || ""}"
     >
 
-    <button
-      type="button"
-      class="remove-loose-product"
-    >
-      ×
-    </button>
+    <button type="button" class="remove-loose-product">×</button>
   `;
 
-  row
-    .querySelector(
-      ".loose-product"
-    )
-    .addEventListener(
-      "change",
-      () => {
-        validateLooseProducts();
-      }
-    );
+  row.querySelectorAll("select,input").forEach(el =>
+    el.addEventListener("input", validateAll)
+  );
 
-  row
-    .querySelector(
-      ".loose-quantity"
-    )
-    .addEventListener(
-      "input",
-      () => {
-        validateLooseProducts();
-      }
-    );
-
-  row
-    .querySelector(
-      ".remove-loose-product"
-    )
-    .addEventListener(
-      "click",
-      () => {
-        row.remove();
-        validateLooseProducts();
-      }
-    );
-
-  $("#looseProducts")
-    .appendChild(row);
-
-  validateLooseProducts();
-}
-
-function validateLooseProducts() {
-  const selected = [];
-
-  $$("#looseProducts .loose-product-row")
-    .forEach(row => {
-      const product =
-        row.querySelector(
-          ".loose-product"
-        ).value;
-
-      if (product) {
-        selected.push(product);
-      }
-    });
-
-  const duplicates =
-    selected.filter(
-      (id, index) =>
-        selected.indexOf(id) !==
-        index
-    );
-
-  if (duplicates.length) {
-    $("#looseValidationMessage")
-      .textContent =
-      "لا تكرر نفس النوع في الحبات المفردة.";
-
-    $("#looseValidationMessage")
-      .hidden = false;
-
-    return false;
-  }
-
-  $("#looseValidationMessage")
-    .hidden = true;
-
-  validateBoxes();
-
-  return true;
-}
-
-/* =========================================================
-   NEW RECORD
-========================================================= */
-
-function openNewRecord() {
-  editingId = null;
-
-  $("#formTitle").textContent =
-    "تسجيل خروج";
-
-  $("#formEyebrow").textContent =
-    "عملية جديدة";
-
-  $("#saveRecordBtn").textContent =
-    "حفظ العملية";
-
-  resetForm();
-
-  addBox();
-
-  navigate("new");
-}
-
-/*
-  THIS WAS MISSING.
-  It connects all buttons with data-new-record
-  to openNewRecord().
-*/
-
-$$("[data-new-record]")
-  .forEach(button => {
-    button.addEventListener(
-      "click",
-      openNewRecord
-    );
-  });
-
-/* =========================================================
-   EDIT RECORD
-========================================================= */
-
-function openEditRecord(id) {
-  const record =
-    records.find(
-      record => record.id === id
-    );
-
-  if (!record) return;
-
-  editingId = id;
-
-  selectedDate =
-    record.businessDate;
-
-  $("#formTitle").textContent =
-    "تعديل العملية";
-
-  $("#formEyebrow").textContent =
-    "تعديل محفوظ";
-
-  $("#saveRecordBtn").textContent =
-    "حفظ التعديل";
-
-  $(
-    'input[name="type"][value="customer"]'
-  ).checked =
-    record.type === "customer";
-
-  $(
-    'input[name="type"][value="hall"]'
-  ).checked =
-    record.type === "hall";
-
-  $("#partyName").value =
-    record.type === "hall"
-      ? "صالة"
-      : record.partyName || "";
-
-  $("#mixedBoxes").innerHTML =
-    "";
-
-  if (
-    Array.isArray(record.boxes) &&
-    record.boxes.length
-  ) {
-    record.boxes.forEach(box => {
-      addBox(box);
-    });
-  }
-
-  $("#looseProducts").innerHTML =
-    "";
-
-  if (
-    Array.isArray(record.loose) &&
-    record.loose.length
-  ) {
-    record.loose.forEach(item => {
-      addLooseProduct(
-        item.productId,
-        item.quantity
-      );
-    });
-  }
-
-  if (record.payment) {
-    const payment =
-      $(
-        `input[name="payment"][value="${record.payment}"]`
-      );
-
-    if (payment) {
-      payment.checked = true;
-    }
-  }
-
-  $("#amount").value =
-    record.amount || "";
-
-  $("#notes").value =
-    record.notes || "";
-
-  updatePartyType();
-  updateFormDate();
-  validateBoxes();
-
-  navigate("new");
-}
-
-/* =========================================================
-   ADD BOX / LOOSE BUTTONS
-========================================================= */
-
-$("#addBoxBtn").addEventListener(
-  "click",
-  () => {
-    addBox();
-  }
-);
-
-$("#addLooseProductBtn")
-  .addEventListener(
+  row.querySelector(".remove-loose-product").addEventListener(
     "click",
     () => {
-      addLooseProduct();
+      row.remove();
+      validateAll();
     }
   );
 
-/* =========================================================
-   FORM SUBMIT
-========================================================= */
-
-$("#recordForm").addEventListener(
-  "submit",
-  event => {
-    event.preventDefault();
-
-    const type =
-      $(
-        'input[name="type"]:checked'
-      ).value;
-
-    const partyName =
-      type === "hall"
-        ? "صالة"
-        : $("#partyName")
-            .value
-            .trim();
-
-    if (
-      type === "customer" &&
-      !partyName
-    ) {
-      toast("أدخل اسم الزبون");
-
-      $("#partyName").focus();
-
-      return;
-    }
-
-    const validation =
-      validateBoxes();
-
-    if (!validation.valid) {
-      toast(
-        validation.message ||
-        "صحح محتوى الصناديق أولاً"
-      );
-
-      return;
-    }
-
-    if (
-      !validateLooseProducts()
-    ) {
-      toast(
-        "صحح الحبات المفردة أولاً"
-      );
-
-      return;
-    }
-
-    const boxes =
-      getBoxData();
-
-    const loose = [];
-
-    $$("#looseProducts .loose-product-row")
-      .forEach(row => {
-        const productId =
-          row.querySelector(
-            ".loose-product"
-          ).value;
-
-        const quantity =
-          Math.max(
-            0,
-            Number(
-              row.querySelector(
-                ".loose-quantity"
-              ).value
-            ) || 0
-          );
-
-        if (
-          productId &&
-          quantity > 0
-        ) {
-          loose.push({
-            id: uid("loose"),
-            productId,
-            quantity
-          });
-        }
-      });
-
-    const hasBoxItems =
-      boxes.some(
-        box =>
-          box.items.length > 0
-      );
-
-    const hasLooseItems =
-      loose.length > 0;
-
-    if (
-      !hasBoxItems &&
-      !hasLooseItems
-    ) {
-      toast(
-        "أدخل المنتجات والكمية"
-      );
-
-      return;
-    }
-
-    const payment =
-      type === "customer"
-        ? $(
-            'input[name="payment"]:checked'
-          ).value
-        : null;
-
-    const amount =
-      type === "customer" &&
-      payment !== "unpaid"
-        ? $("#amount").value
-        : "";
-
-    const now =
-      new Date().toISOString();
-
-    if (editingId) {
-      const record =
-        records.find(
-          record =>
-            record.id ===
-            editingId
-        );
-
-      if (!record) {
-        toast(
-          "لم يتم العثور على العملية"
-        );
-
-        return;
-      }
-
-      record.businessDate =
-        selectedDate;
-
-      record.type =
-        type;
-
-      record.partyName =
-        partyName;
-
-      record.boxes =
-        boxes;
-
-      record.loose =
-        loose;
-
-      record.total =
-        validation.total;
-
-      record.payment =
-        payment;
-
-      record.amount =
-        amount;
-
-      record.notes =
-        $("#notes")
-          .value
-          .trim();
-
-      record.updatedAt =
-        now;
-
-      toast(
-        "تم تعديل العملية"
-      );
-    } else {
-      records.unshift({
-        id: uid("record"),
-
-        businessDate:
-          selectedDate,
-
-        createdAt:
-          now,
-
-        type,
-
-        partyName,
-
-        boxes,
-
-        loose,
-
-        total:
-          validation.total,
-
-        payment,
-
-        amount,
-
-        notes:
-          $("#notes")
-            .value
-            .trim()
-      });
-
-      toast(
-        "تم حفظ العملية"
-      );
-    }
-
-    saveRecords();
-
-    editingId = null;
-
-    resetForm();
-
-    navigate("home");
-  }
-);
-
-/* =========================================================
-   PARTY TYPE
-========================================================= */
-
-function updatePartyType() {
-  const selectedType =
-    $(
-      'input[name="type"]:checked'
-    );
-
-  if (!selectedType) {
-    return;
-  }
-
-  const type =
-    selectedType.value;
-
-  const isHall =
-    type === "hall";
-
-  $("#customerNameField")
-    .hidden = isHall;
-
-  $("#hallSelected")
-    .hidden = !isHall;
-
-  $("#paymentSection")
-    .hidden = isHall;
-
-  if (isHall) {
-    $("#partyName").value =
-      "صالة";
-
-    $("#partyName")
-      .removeAttribute(
-        "required"
-      );
-  } else {
-    if (!editingId) {
-      $("#partyName").value =
-        "";
-    }
-
-    $("#partyName")
-      .setAttribute(
-        "required",
-        ""
-      );
-  }
-
-  const payment =
-    $(
-      'input[name="payment"]:checked'
-    )?.value || "cash";
-
-  $("#amountField")
-    .hidden =
-    payment === "unpaid";
+  $("#looseProducts").appendChild(row);
 }
 
-$$('input[name="type"]')
-  .forEach(input => {
-    input.addEventListener(
-      "change",
-      updatePartyType
-    );
+function getLoose() {
+  return $$("#looseProducts .loose-product-row")
+    .map(row => ({
+      id: uid("loose"),
+      productId: row.querySelector(".loose-product").value,
+      quantity: Math.max(
+        0,
+        Number(row.querySelector(".loose-quantity").value) || 0
+      )
+    }))
+    .filter(item => item.productId && item.quantity > 0);
+}
+
+/* =========================
+   TOTAL / VALIDATION
+========================= */
+
+function validateAll() {
+  let total = 0;
+  let valid = true;
+  let message = "";
+
+  getBoxes().forEach((box, i) => {
+    total += box.total;
+
+    if (!box.items.length) {
+      valid = false;
+      message = `أدخل محتوى الصندوق ${i + 1}.`;
+    }
+
+    if (box.total > box.boxSize) {
+      valid = false;
+      message =
+        `الصندوق ${i + 1} يحتوي ${box.total} حبة، والحد الأقصى ${box.boxSize}.`;
+    }
+
+    const el = $$("#mixedBoxes .mixed-box")[i];
+    if (el) updateBox(el);
   });
 
-$$('input[name="payment"]')
-  .forEach(input => {
-    input.addEventListener(
-      "change",
-      () => {
-        $("#amountField")
-          .hidden =
-          input.value ===
-          "unpaid";
-      }
-    );
+  getLoose().forEach(item => {
+    total += item.quantity;
   });
 
-/* =========================================================
-   RESET FORM
-========================================================= */
+  $("#orderTotal").textContent =
+    total.toLocaleString("ar-LB");
+
+  $("#boxValidationMessage").textContent = message;
+  $("#boxValidationMessage").hidden = !message;
+
+  return { valid, total, message };
+}
+
+/* =========================
+   FORM
+========================= */
 
 function resetForm() {
   $("#recordForm").reset();
+  $("#mixedBoxes").innerHTML = "";
+  $("#looseProducts").innerHTML = "";
 
-  $("#mixedBoxes").innerHTML =
-    "";
+  $('input[name="type"][value="customer"]').checked = true;
+  $('input[name="payment"][value="cash"]').checked = true;
 
-  $("#looseProducts")
-    .innerHTML = "";
+  $("#amount").value = "";
+  $("#notes").value = "";
 
-  $(
-    'input[name="type"][value="customer"]'
-  ).checked = true;
-
-  $(
-    'input[name="payment"][value="cash"]'
-  ).checked = true;
-
-  $("#amount").value =
-    "";
-
-  $("#notes").value =
-    "";
+  $("#formTitle").textContent = "تسجيل خروج";
+  $("#formEyebrow").textContent = "عملية جديدة";
+  $("#saveRecordBtn").textContent = "حفظ العملية";
 
   updatePartyType();
   updateFormDate();
-
-  $("#formTitle").textContent =
-    "تسجيل خروج";
-
-  $("#formEyebrow").textContent =
-    "عملية جديدة";
-
-  $("#saveRecordBtn").textContent =
-    "حفظ العملية";
-
-  $("#orderTotal").textContent =
-    "0";
-
-  $("#boxValidationMessage")
-    .hidden = true;
-
-  $("#looseValidationMessage")
-    .hidden = true;
+  validateAll();
 }
 
-/* =========================================================
+function openNewRecord() {
+  editingId = null;
+  resetForm();
+  createBox();
+
+  navigate("new");
+}
+
+$$("[data-new-record]").forEach(btn =>
+  btn.addEventListener("click", openNewRecord)
+);
+
+$("#addBoxBtn").addEventListener("click", () => {
+  createBox();
+  window.setTimeout(() => {
+    const boxes = $$("#mixedBoxes .mixed-box");
+    boxes.at(-1)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  }, 50);
+});
+
+$("#addLooseProductBtn").addEventListener(
+  "click",
+  () => addLooseRow()
+);
+
+function openEditRecord(id) {
+  const record = records.find(r => r.id === id);
+  if (!record) return;
+
+  editingId = id;
+  selectedDate = record.businessDate;
+
+  $("#formTitle").textContent = "تعديل العملية";
+  $("#formEyebrow").textContent = "تعديل محفوظ";
+  $("#saveRecordBtn").textContent = "حفظ التعديل";
+
+  $('input[name="type"][value="customer"]').checked =
+    record.type === "customer";
+
+  $('input[name="type"][value="hall"]').checked =
+    record.type === "hall";
+
+  $("#partyName").value =
+    record.type === "hall" ? "صالة" : record.partyName || "";
+
+  $("#mixedBoxes").innerHTML = "";
+  $("#looseProducts").innerHTML = "";
+
+  if (record.boxes.length) {
+    record.boxes.forEach(box => createBox(box));
+  } else {
+    createBox();
+  }
+
+  record.loose.forEach(item => addLooseRow(item));
+
+  const payment = $(
+    `input[name="payment"][value="${record.payment || "cash"}"]`
+  );
+
+  if (payment) payment.checked = true;
+
+  $("#amount").value = record.amount || "";
+  $("#notes").value = record.notes || "";
+
+  updatePartyType();
+  updateFormDate();
+  validateAll();
+
+  navigate("new");
+}
+
+$("#recordForm").addEventListener("submit", e => {
+  e.preventDefault();
+
+  const type = $('input[name="type"]:checked').value;
+  const partyName =
+    type === "hall" ? "صالة" : $("#partyName").value.trim();
+
+  if (type === "customer" && !partyName) {
+    toast("أدخل اسم الزبون");
+    $("#partyName").focus();
+    return;
+  }
+
+  const validation = validateAll();
+
+  if (!validation.valid) {
+    toast(validation.message || "صحح الصناديق أولاً");
+    return;
+  }
+
+  const boxes = getBoxes();
+  const loose = getLoose();
+
+  if (!boxes.length && !loose.length) {
+    toast("أدخل كمية المنتجات");
+    return;
+  }
+
+  const payment =
+    type === "customer"
+      ? $('input[name="payment"]:checked').value
+      : null;
+
+  const amount =
+    type === "customer" && payment !== "unpaid"
+      ? $("#amount").value
+      : "";
+
+  const now = new Date().toISOString();
+
+  const data = {
+    businessDate: selectedDate,
+    type,
+    partyName,
+    boxes,
+    loose,
+    total: validation.total,
+    payment,
+    amount,
+    notes: $("#notes").value.trim()
+  };
+
+  if (editingId) {
+    const record = records.find(r => r.id === editingId);
+
+    if (!record) return;
+
+    Object.assign(record, data, { updatedAt: now });
+    toast("تم تعديل العملية");
+  } else {
+    records.unshift({
+      id: uid("record"),
+      createdAt: now,
+      ...data
+    });
+
+    toast("تم حفظ العملية");
+  }
+
+  saveRecords();
+  editingId = null;
+  resetForm();
+  navigate("home");
+});
+
+/* =========================
+   PARTY / PAYMENT
+========================= */
+
+function updatePartyType() {
+  const type = $('input[name="type"]:checked')?.value;
+  const hall = type === "hall";
+
+  $("#customerNameField").hidden = hall;
+  $("#hallSelected").hidden = !hall;
+  $("#paymentSection").hidden = hall;
+
+  if (hall) {
+    $("#partyName").value = "صالة";
+    $("#partyName").removeAttribute("required");
+  } else {
+    if (!editingId) $("#partyName").value = "";
+    $("#partyName").setAttribute("required", "");
+  }
+
+  const payment =
+    $('input[name="payment"]:checked')?.value || "cash";
+
+  $("#amountField").hidden = payment === "unpaid";
+}
+
+$$('input[name="type"]').forEach(input =>
+  input.addEventListener("change", updatePartyType)
+);
+
+$$('input[name="payment"]').forEach(input =>
+  input.addEventListener("change", () => {
+    $("#amountField").hidden = input.value === "unpaid";
+  })
+);
+
+/* =========================
    RECORD DISPLAY
-========================================================= */
+========================= */
 
-function boxDetailsText(box) {
-  if (
-    !box ||
-    !Array.isArray(
-      box.items
-    ) ||
-    !box.items.length
-  ) {
-    return "فارغ";
-  }
-
-  return box.items
-    .map(
-      item =>
-        `${productName(
-          item.productId
-        )}: ${Number(
-          item.quantity || 0
-        )}`
-    )
-    .join(" · ");
-}
-
-function looseDetailsText(record) {
-  if (
-    !Array.isArray(
-      record.loose
-    ) ||
-    !record.loose.length
-  ) {
-    return "";
-  }
-
-  return record.loose
-    .map(
-      item =>
-        `${productName(
-          item.productId
-        )}: ${Number(
-          item.quantity || 0
-        )}`
-    )
-    .join(" · ");
-}
-
-function orderCompositionText(record) {
+function composition(record) {
   const totals = {};
 
-  (
-    record.boxes || []
-  ).forEach(box => {
-    (
-      box.items || []
-    ).forEach(item => {
-      totals[item.productId] =
-        (
-          totals[item.productId] ||
-          0
-        ) +
-        Number(
-          item.quantity || 0
-        );
-    });
-  });
+  const add = (productId, typeId, qty) => {
+    const key = `${productId}:${typeId}`;
 
-  (
-    record.loose || []
-  ).forEach(item => {
-    totals[item.productId] =
-      (
-        totals[item.productId] ||
-        0
-      ) +
-      Number(
-        item.quantity || 0
-      );
-  });
+    totals[key] ||= {
+      productId,
+      typeId,
+      quantity: 0
+    };
 
-  return Object.entries(
-    totals
-  )
-    .map(
-      ([productId, quantity]) =>
-        `${productName(
-          productId
-        )}: ${quantity}`
+    totals[key].quantity += Number(qty) || 0;
+  };
+
+  (record.boxes || []).forEach(box =>
+    (box.items || []).forEach(item =>
+      add(box.productId, item.typeId, item.quantity)
     )
+  );
+
+  (record.loose || []).forEach(item =>
+    add(item.productId, "loose", item.quantity)
+  );
+
+  return Object.values(totals);
+}
+
+function compositionText(record) {
+  return composition(record)
+    .map(item => {
+      const name =
+        item.typeId === "loose"
+          ? productName(item.productId)
+          : typeName(item.productId, item.typeId);
+
+      return `${name}: ${item.quantity}`;
+    })
     .join(" · ");
+}
+
+function boxText(box) {
+  return (box.items || [])
+    .map(item =>
+      `${typeName(box.productId, item.typeId)} ${item.quantity}`
+    )
+    .join(" + ");
 }
 
 function paymentText(payment) {
-  if (payment === "cash") {
-    return "نقداً";
-  }
-
-  if (payment === "whish") {
-    return "Whish Money";
-  }
-
-  if (payment === "unpaid") {
-    return "غير مدفوع";
-  }
-
-  return "—";
+  return {
+    cash: "نقداً",
+    whish: "Whish Money",
+    unpaid: "غير مدفوع"
+  }[payment] || "—";
 }
 
 function card(record) {
-  const boxes =
-    record.boxes || [];
-
-  const loose =
-    record.loose || [];
+  const boxes = record.boxes || [];
+  const loose = record.loose || [];
 
   return `
     <article class="record-card">
-
       <div class="record-top">
-
         <div>
-
           <div class="record-name">
-
-            ${esc(
-              record.partyName
-            )}
-
+            ${esc(record.partyName)}
             <span class="pill">
-
-              ${
-                record.type ===
-                "customer"
-                  ? "زبون"
-                  : "صالة"
-              }
-
+              ${record.type === "customer" ? "زبون" : "صالة"}
             </span>
-
           </div>
 
           <div class="record-meta">
-
-            ${formatTime(
-              record.createdAt
-            )}
-
-            ·
-
-            ${formatShortDate(
-              record.businessDate
-            )}
-
+            ${formatTime(record.createdAt)} ·
+            ${formatShortDate(record.businessDate)}
           </div>
-
         </div>
 
         <div class="record-total">
-
-          ${Number(
-            record.total || 0
-          ).toLocaleString(
-            "ar-LB"
-          )}
-
-          <small>
-            حبة
-          </small>
-
+          ${Number(record.total).toLocaleString("ar-LB")}
+          <small>حبة</small>
         </div>
-
       </div>
 
       <div class="record-details">
 
         <div class="composition-summary">
-
-          <b>الطلب:</b>
-
-          ${esc(
-            orderCompositionText(
-              record
-            ) || "—"
-          )}
-
+          <b>الإجمالي حسب النوع:</b>
+          ${esc(compositionText(record) || "—")}
         </div>
 
         ${
           boxes.length
             ? `
               <div class="record-boxes">
+                <b>${boxes.length} صندوق:</b>
 
-                <b>
-                  الصناديق:
-                </b>
-
-                ${boxes
-                  .map(
-                    (
-                      box,
-                      index
-                    ) => `
-                      <div class="saved-box">
-
-                        <strong>
-                          صندوق ${
-                            index + 1
-                          }
-                        </strong>
-
-                        <span>
-                          ${esc(
-                            boxDetailsText(
-                              box
-                            )
-                          )}
-                        </span>
-
-                      </div>
-                    `
-                  )
-                  .join("")}
-
+                ${boxes.map((box, i) => `
+                  <div class="saved-box">
+                    <strong>صندوق ${i + 1}</strong>
+                    <span>
+                      ${esc(productName(box.productId))}
+                      —
+                      ${esc(boxText(box))}
+                      =
+                      ${box.total}/${box.boxSize}
+                    </span>
+                  </div>
+                `).join("")}
               </div>
             `
             : ""
@@ -1725,44 +942,22 @@ function card(record) {
           loose.length
             ? `
               <div class="saved-loose">
-
-                <b>
-                  حبات خارج الصندوق:
-                </b>
-
-                ${esc(
-                  looseDetailsText(
-                    record
-                  )
-                )}
-
+                <b>خارج الصندوق:</b>
+                ${loose.map(item =>
+                  `${esc(productName(item.productId))}: ${item.quantity}`
+                ).join(" · ")}
               </div>
             `
             : ""
         }
 
         ${
-          record.type ===
-          "customer"
+          record.type === "customer"
             ? `
               <div>
-
-                <b>
-                  الدفع:
-                </b>
-
-                ${paymentText(
-                  record.payment
-                )}
-
-                ${
-                  record.amount
-                    ? ` · ${money(
-                        record.amount
-                      )}`
-                    : ""
-                }
-
+                <b>الدفع:</b>
+                ${paymentText(record.payment)}
+                ${record.amount ? ` · ${money(record.amount)}` : ""}
               </div>
             `
             : ""
@@ -1770,923 +965,395 @@ function card(record) {
 
         ${
           record.notes
-            ? `
-              <div class="note-line">
-
-                <b>
-                  ملاحظات:
-                </b>
-
-                ${esc(
-                  record.notes
-                )}
-
-              </div>
-            `
+            ? `<div class="note-line"><b>ملاحظات:</b> ${esc(record.notes)}</div>`
             : ""
         }
 
         <div class="record-actions">
-
-          <button
-            type="button"
-            class="edit-record"
-            data-edit-id="${esc(
-              record.id
-            )}"
-          >
+          <button type="button" data-edit-id="${esc(record.id)}">
             تعديل
           </button>
 
-          <button
-            type="button"
-            class="delete-record"
-            data-delete-id="${esc(
-              record.id
-            )}"
-          >
+          <button type="button" data-delete-id="${esc(record.id)}">
             حذف
           </button>
-
         </div>
-
       </div>
-
     </article>
   `;
 }
 
-/* =========================================================
-   HOME
-========================================================= */
+/* =========================
+   HOME / RECORDS
+========================= */
 
-function dayRecords(
-  date = selectedDate
-) {
+function dayRecords(date = selectedDate) {
   return records
-    .filter(
-      record =>
-        record.businessDate ===
-        date
-    )
+    .filter(r => r.businessDate === date)
     .sort(
       (a, b) =>
-        new Date(
-          b.createdAt
-        ) -
-        new Date(
-          a.createdAt
-        )
+        new Date(b.createdAt) - new Date(a.createdAt)
     );
 }
 
 function renderHome() {
-  const list =
-    dayRecords();
+  const list = dayRecords();
 
-  $("#selectedDate").value =
-    selectedDate;
+  $("#selectedDate").value = selectedDate;
+  $("#dayLabel").textContent = formatBusinessDate(selectedDate);
 
-  $("#dayLabel").textContent =
-    formatBusinessDate(
-      selectedDate
-    );
+  $("#todayTotal").textContent = list
+    .reduce((sum, r) => sum + Number(r.total || 0), 0)
+    .toLocaleString("ar-LB");
 
-  $("#todayTotal").textContent =
-    list
-      .reduce(
-        (sum, record) =>
-          sum +
-          Number(
-            record.total || 0
-          ),
-        0
-      )
-      .toLocaleString(
-        "ar-LB"
-      );
+  $("#todayCount").textContent =
+    list.length.toLocaleString("ar-LB");
 
-  $("#todayCount")
-    .textContent =
-    list.length.toLocaleString(
-      "ar-LB"
-    );
+  $("#todayCustomers").textContent =
+    list.filter(r => r.type === "customer").length
+      .toLocaleString("ar-LB");
 
-  $("#todayCustomers")
-    .textContent =
-    list
-      .filter(
-        record =>
-          record.type ===
-          "customer"
-      )
-      .length
-      .toLocaleString(
-        "ar-LB"
-      );
+  $("#todayHalls").textContent =
+    list.filter(r => r.type === "hall").length
+      .toLocaleString("ar-LB");
 
-  $("#todayHalls")
-    .textContent =
-    list
-      .filter(
-        record =>
-          record.type ===
-          "hall"
-      )
-      .length
-      .toLocaleString(
-        "ar-LB"
-      );
-
-  $("#recentRecords")
-    .innerHTML =
-    list
-      .slice(0, 5)
-      .map(card)
-      .join("") ||
-    `
-      <div class="empty">
-        لا توجد عمليات في هذا اليوم.
-      </div>
-    `;
+  $("#recentRecords").innerHTML =
+    list.slice(0, 5).map(card).join("") ||
+    `<div class="empty">لا توجد عمليات في هذا اليوم.</div>`;
 }
-
-/* =========================================================
-   RECORDS
-========================================================= */
 
 function renderRecords() {
-  const query =
-    $("#searchInput")
-      .value
-      .trim()
-      .toLowerCase();
+  const query = $("#searchInput").value.trim().toLowerCase();
+  const type = $("#typeFilter").value;
 
-  const type =
-    $("#typeFilter").value;
+  const list = dayRecords().filter(record => {
+    const text = [
+      record.partyName,
+      record.notes,
+      compositionText(record)
+    ].join(" ").toLowerCase();
 
-  const list =
-    dayRecords().filter(
-      record => {
-        const searchText =
-          [
-            record.partyName,
-            record.notes,
-            orderCompositionText(
-              record
-            )
-          ]
-            .join(" ")
-            .toLowerCase();
-
-        const matchesSearch =
-          !query ||
-          searchText.includes(
-            query
-          );
-
-        const matchesType =
-          type === "all" ||
-          record.type === type;
-
-        return (
-          matchesSearch &&
-          matchesType
-        );
-      }
+    return (
+      (!query || text.includes(query)) &&
+      (type === "all" || record.type === type)
     );
+  });
 
-  $("#recordsDateLabel")
-    .textContent =
-    formatBusinessDate(
-      selectedDate
-    );
+  $("#recordsDateLabel").textContent =
+    formatBusinessDate(selectedDate);
 
-  $("#recordsList")
-    .innerHTML =
-    list
-      .map(card)
-      .join("") ||
-    `
-      <div class="empty">
-        لا توجد نتائج لهذا اليوم.
-      </div>
-    `;
+  $("#recordsList").innerHTML =
+    list.map(card).join("") ||
+    `<div class="empty">لا توجد نتائج لهذا اليوم.</div>`;
 }
 
-$("#searchInput").addEventListener(
-  "input",
-  renderRecords
-);
+$("#searchInput").addEventListener("input", renderRecords);
+$("#typeFilter").addEventListener("change", renderRecords);
 
-$("#typeFilter").addEventListener(
-  "change",
-  renderRecords
-);
-
-/* =========================================================
+/* =========================
    EDIT / DELETE
-========================================================= */
+========================= */
 
-document.addEventListener(
-  "click",
-  event => {
-    const editButton =
-      event.target.closest(
-        "[data-edit-id]"
-      );
+document.addEventListener("click", e => {
+  const edit = e.target.closest("[data-edit-id]");
 
-    if (editButton) {
-      openEditRecord(
-        editButton.dataset.editId
-      );
-
-      return;
-    }
-
-    const deleteButton =
-      event.target.closest(
-        "[data-delete-id]"
-      );
-
-    if (!deleteButton) {
-      return;
-    }
-
-    const record =
-      records.find(
-        record =>
-          record.id ===
-          deleteButton.dataset
-            .deleteId
-      );
-
-    if (!record) {
-      return;
-    }
-
-    const confirmed =
-      confirm(
-        `حذف عملية ${
-          record.partyName
-        } — ${
-          record.total
-        } حبة؟\n\nلا يمكن التراجع عن هذا الحذف.`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    records =
-      records.filter(
-        record =>
-          record.id !==
-          deleteButton.dataset
-            .deleteId
-      );
-
-    saveRecords();
-
-    renderHome();
-    renderRecords();
-    renderReportPreview();
-
-    toast(
-      "تم حذف العملية"
-    );
+  if (edit) {
+    openEditRecord(edit.dataset.editId);
+    return;
   }
-);
 
-/* =========================================================
+  const del = e.target.closest("[data-delete-id]");
+  if (!del) return;
+
+  const record = records.find(r => r.id === del.dataset.deleteId);
+  if (!record) return;
+
+  if (!confirm(
+    `حذف عملية ${record.partyName} — ${record.total} حبة؟\n\nلا يمكن التراجع عن هذا الحذف.`
+  )) return;
+
+  records = records.filter(r => r.id !== record.id);
+  saveRecords();
+
+  renderHome();
+  renderRecords();
+  renderReportPreview();
+
+  toast("تم حذف العملية");
+});
+
+/* =========================
    REPORTS
-========================================================= */
+========================= */
 
-function filteredReport(
-  from,
-  to,
-  type
-) {
+function filteredReport(from, to, type) {
   return records
-    .filter(record => {
-      const date =
-        record.businessDate;
-
-      return (
-        (!from ||
-          date >= from) &&
-        (!to ||
-          date <= to) &&
-        (
-          type === "all" ||
-          record.type === type
-        )
-      );
-    })
-    .sort(
-      (a, b) =>
-        a.businessDate.localeCompare(
-          b.businessDate
-        ) ||
-        new Date(
-          a.createdAt
-        ) -
-        new Date(
-          b.createdAt
-        )
+    .filter(r =>
+      (!from || r.businessDate >= from) &&
+      (!to || r.businessDate <= to) &&
+      (type === "all" || r.type === type)
+    )
+    .sort((a, b) =>
+      a.businessDate.localeCompare(b.businessDate) ||
+      new Date(a.createdAt) - new Date(b.createdAt)
     );
 }
 
 function setDailyReport() {
-  $("#fromDate").value =
-    selectedDate;
-
-  $("#toDate").value =
-    selectedDate;
-
+  $("#fromDate").value = selectedDate;
+  $("#toDate").value = selectedDate;
   renderReportPreview();
 }
 
+function reportProductTotals(list) {
+  const totals = {};
+
+  list.forEach(record =>
+    composition(record).forEach(item => {
+      const key = `${item.productId}:${item.typeId}`;
+
+      totals[key] ||= {
+        productId: item.productId,
+        typeId: item.typeId,
+        quantity: 0
+      };
+
+      totals[key].quantity += item.quantity;
+    })
+  );
+
+  return Object.values(totals);
+}
+
 function renderReportPreview() {
-  const from =
-    $("#fromDate").value;
+  const from = $("#fromDate").value;
+  const to = $("#toDate").value;
+  const type = $("#reportType").value;
+  const list = filteredReport(from, to, type);
 
-  const to =
-    $("#toDate").value;
+  const total = list.reduce(
+    (sum, r) => sum + Number(r.total || 0),
+    0
+  );
 
-  const type =
-    $("#reportType").value;
+  const customerTotal = list
+    .filter(r => r.type === "customer")
+    .reduce((sum, r) => sum + Number(r.total || 0), 0);
 
-  const list =
-    filteredReport(
-      from,
-      to,
-      type
-    );
+  const hallTotal = list
+    .filter(r => r.type === "hall")
+    .reduce((sum, r) => sum + Number(r.total || 0), 0);
 
-  const total =
-    list.reduce(
-      (sum, record) =>
-        sum +
-        Number(
-          record.total || 0
-        ),
-      0
-    );
+  const productTotals = reportProductTotals(list);
 
-  const customers =
-    list.filter(
-      record =>
-        record.type ===
-        "customer"
-    );
+  let dateText = "—";
 
-  const halls =
-    list.filter(
-      record =>
-        record.type ===
-        "hall"
-    );
-
-  const customerTotal =
-    customers.reduce(
-      (sum, record) =>
-        sum +
-        Number(
-          record.total || 0
-        ),
-      0
-    );
-
-  const hallTotal =
-    halls.reduce(
-      (sum, record) =>
-        sum +
-        Number(
-          record.total || 0
-        ),
-      0
-    );
-
-  const productTotals =
-    {};
-
-  list.forEach(record => {
-    (
-      record.boxes || []
-    ).forEach(box => {
-      (
-        box.items || []
-      ).forEach(item => {
-        productTotals[
-          item.productId
-        ] =
-          (
-            productTotals[
-              item.productId
-            ] || 0
-          ) +
-          Number(
-            item.quantity || 0
-          );
-      });
-    });
-
-    (
-      record.loose || []
-    ).forEach(item => {
-      productTotals[
-        item.productId
-      ] =
-        (
-          productTotals[
-            item.productId
-          ] || 0
-        ) +
-        Number(
-          item.quantity || 0
-        );
-    });
-  });
-
-  const title =
-    from &&
-    to &&
-    from === to
-      ? "تقرير يومي"
-      : "تقرير فترة";
-
-  let dateText =
-    "—";
-
-  if (
-    from &&
-    to &&
-    from === to
-  ) {
-    dateText =
-      formatBusinessDate(
-        from
-      );
-  } else if (
-    from &&
-    to
-  ) {
-    dateText =
-      `${formatShortDate(
-        from
-      )} — ${formatShortDate(
-        to
-      )}`;
+  if (from && to && from === to) {
+    dateText = formatBusinessDate(from);
+  } else if (from && to) {
+    dateText = `${formatShortDate(from)} — ${formatShortDate(to)}`;
   } else if (from) {
-    dateText =
-      `من ${formatShortDate(
-        from
-      )}`;
+    dateText = `من ${formatShortDate(from)}`;
   } else if (to) {
-    dateText =
-      `حتى ${formatShortDate(
-        to
-      )}`;
+    dateText = `حتى ${formatShortDate(to)}`;
   }
 
-  $("#reportPreview")
-    .innerHTML = `
-
+  $("#reportPreview").innerHTML = `
     <div class="print-header">
-
-      <h2>
-        ${esc(
-          settings.factoryName
-        )}
-      </h2>
-
-      <h3>
-        ${title}
-      </h3>
-
-      <p>
-        ${dateText}
-      </p>
-
+      <h2>${esc(settings.factoryName)}</h2>
+      <h3>${from && to && from === to ? "تقرير يومي" : "تقرير فترة"}</h3>
+      <p>${dateText}</p>
     </div>
 
     <div class="report-summary-grid">
-
-      <div>
-        <span>
-          العمليات
-        </span>
-
-        <strong>
-          ${list.length}
-        </strong>
-      </div>
-
-      <div>
-        <span>
-          إجمالي الحبات
-        </span>
-
-        <strong>
-          ${total.toLocaleString(
-            "ar-LB"
-          )}
-        </strong>
-      </div>
-
-      <div>
-        <span>
-          الزبائن
-        </span>
-
-        <strong>
-          ${customerTotal.toLocaleString(
-            "ar-LB"
-          )}
-        </strong>
-      </div>
-
-      <div>
-        <span>
-          الصالة
-        </span>
-
-        <strong>
-          ${hallTotal.toLocaleString(
-            "ar-LB"
-          )}
-        </strong>
-      </div>
-
+      <div><span>العمليات</span><strong>${list.length}</strong></div>
+      <div><span>إجمالي الحبات</span><strong>${total.toLocaleString("ar-LB")}</strong></div>
+      <div><span>الزبائن</span><strong>${customerTotal.toLocaleString("ar-LB")}</strong></div>
+      <div><span>الصالة</span><strong>${hallTotal.toLocaleString("ar-LB")}</strong></div>
     </div>
 
     <div class="report-products">
-
-      <h3>
-        إجمالي المنتجات
-      </h3>
+      <h3>الإجمالي حسب النوع</h3>
 
       ${
-        Object.entries(
-          productTotals
-        )
-          .map(
-            ([id, quantity]) => `
-              <div
-                class="report-product-row"
-              >
-
-                <span>
-                  ${esc(
-                    productName(id)
-                  )}
-                </span>
-
-                <strong>
-                  ${Number(
-                    quantity
-                  ).toLocaleString(
-                    "ar-LB"
-                  )}
-                  حبة
-                </strong>
-
-              </div>
-            `
-          )
-          .join("") ||
-        `
-          <div class="empty">
-            لا توجد منتجات.
-          </div>
-        `
+        productTotals.length
+          ? productTotals.map(item => `
+            <div class="report-product-row">
+              <span>
+                ${esc(
+                  item.typeId === "loose"
+                    ? productName(item.productId)
+                    : typeName(item.productId, item.typeId)
+                )}
+              </span>
+              <strong>${item.quantity.toLocaleString("ar-LB")} حبة</strong>
+            </div>
+          `).join("")
+          : `<div class="empty">لا توجد منتجات.</div>`
       }
-
     </div>
 
     <table class="report-table">
-
       <thead>
-
         <tr>
-          <th>
-            التاريخ
-          </th>
-
-          <th>
-            الجهة
-          </th>
-
-          <th>
-            النوع
-          </th>
-
-          <th>
-            الصناديق
-          </th>
-
-          <th>
-            الكمية
-          </th>
-
-          <th>
-            المنتجات
-          </th>
-
-          <th>
-            الدفع
-          </th>
+          <th>التاريخ</th>
+          <th>الجهة</th>
+          <th>الصناديق</th>
+          <th>الكمية</th>
+          <th>المنتجات</th>
+          <th>الدفع</th>
         </tr>
-
       </thead>
 
       <tbody>
-
         ${
-          list
-            .map(
-              record => `
-                <tr>
-
-                  <td>
-                    ${formatShortDate(
-                      record.businessDate
-                    )}
-                  </td>
-
-                  <td>
-                    ${esc(
-                      record.partyName
-                    )}
-                  </td>
-
-                  <td>
-                    ${
-                      record.type ===
-                      "customer"
-                        ? "زبون"
-                        : "صالة"
-                    }
-                  </td>
-
-                  <td>
-                    ${
-                      (
-                        record.boxes ||
-                        []
-                      ).length
-                    }
-                  </td>
-
-                  <td>
-                    ${Number(
-                      record.total || 0
-                    ).toLocaleString(
-                      "ar-LB"
-                    )}
-                  </td>
-
-                  <td>
-                    ${esc(
-                      orderCompositionText(
-                        record
-                      ) || "—"
-                    )}
-                  </td>
-
-                  <td>
-                    ${
-                      record.type ===
-                      "customer"
-                        ? paymentText(
-                            record.payment
-                          )
-                        : "—"
-                    }
-                  </td>
-
-                </tr>
-              `
-            )
-            .join("") ||
-          `
-            <tr>
-
-              <td colspan="7">
-                لا توجد عمليات.
-              </td>
-
-            </tr>
-          `
+          list.length
+            ? list.map(r => `
+              <tr>
+                <td>${formatShortDate(r.businessDate)}</td>
+                <td>${esc(r.partyName)}</td>
+                <td>${r.boxes.length}</td>
+                <td>${Number(r.total).toLocaleString("ar-LB")}</td>
+                <td>${esc(compositionText(r))}</td>
+                <td>
+                  ${r.type === "customer" ? paymentText(r.payment) : "—"}
+                </td>
+              </tr>
+            `).join("")
+            : `<tr><td colspan="6">لا توجد عمليات.</td></tr>`
         }
-
       </tbody>
-
     </table>
 
     ${
       list.length
         ? `
           <div class="report-box-details">
+            <h3>تفاصيل الصناديق</h3>
 
-            <h3>
-              تفاصيل الصناديق
-            </h3>
+            ${list.map(r => `
+              <div class="report-record-detail">
+                <strong>${esc(r.partyName)}</strong>
+                <span>${formatShortDate(r.businessDate)}</span>
 
-            ${list
-              .map(
-                record => `
-                  <div
-                    class="report-record-detail"
-                  >
-
-                    <strong>
-                      ${esc(
-                        record.partyName
-                      )}
-                    </strong>
-
-                    <span>
-                      ${formatShortDate(
-                        record.businessDate
-                      )}
-                    </span>
-
+                ${
+                  r.boxes.map((box, i) => `
                     <div>
-                      ${
-                        (
-                          record.boxes ||
-                          []
-                        )
-                          .map(
-                            (
-                              box,
-                              index
-                            ) => `
-                              <div>
-                                صندوق ${
-                                  index + 1
-                                }:
-                                ${esc(
-                                  boxDetailsText(
-                                    box
-                                  )
-                                )}
-                              </div>
-                            `
-                          )
-                          .join("")
-                      }
+                      صندوق ${i + 1}:
+                      ${esc(productName(box.productId))}
+                      —
+                      ${esc(boxText(box))}
+                      =
+                      ${box.total}/${box.boxSize}
                     </div>
-
-                  </div>
-                `
-              )
-              .join("")}
-
+                  `).join("")
+                }
+              </div>
+            `).join("")}
           </div>
         `
         : ""
     }
 
     <div class="report-footer">
-
       إجمالي الحبات:
-
-      <strong>
-        ${total.toLocaleString(
-          "ar-LB"
-        )}
-      </strong>
-
+      <strong>${total.toLocaleString("ar-LB")}</strong>
     </div>
   `;
 }
 
-$("#dailyReport").addEventListener(
-  "click",
-  setDailyReport
-);
+$("#dailyReport").addEventListener("click", setDailyReport);
+$("#fromDate").addEventListener("change", renderReportPreview);
+$("#toDate").addEventListener("change", renderReportPreview);
+$("#reportType").addEventListener("change", renderReportPreview);
 
-$("#fromDate").addEventListener(
-  "change",
-  renderReportPreview
-);
+$("#printReport").addEventListener("click", () => {
+  renderReportPreview();
+  setTimeout(() => window.print(), 100);
+});
 
-$("#toDate").addEventListener(
-  "change",
-  renderReportPreview
-);
-
-$("#reportType").addEventListener(
-  "change",
-  renderReportPreview
-);
-
-$("#printReport").addEventListener(
-  "click",
-  () => {
-    renderReportPreview();
-
-    setTimeout(() => {
-      window.print();
-    }, 100);
-  }
-);
-
-/* =========================================================
+/* =========================
    SETTINGS
-========================================================= */
+========================= */
 
 function loadSettingsForm() {
-  $("#factoryName").value =
-    settings.factoryName;
+  $("#factoryName").value = settings.factoryName;
+
+  const croissant = productById("croissant");
+  const donut = productById("donut");
+
+  $("#croissantBoxSize").value = croissant?.boxSize || 40;
+  $("#donutBoxSize").value = donut?.boxSize || 8;
 }
 
-$("#saveSettings").addEventListener(
-  "click",
-  () => {
-    settings.factoryName =
-      $("#factoryName")
-        .value
-        .trim() ||
-      "سجل المصنع";
+$("#saveSettings").addEventListener("click", () => {
+  settings.factoryName =
+    $("#factoryName").value.trim() || "سجل المصنع";
 
-    saveSettings();
+  const croissant = productById("croissant");
+  const donut = productById("donut");
 
-    toast(
-      "تم حفظ الإعدادات"
-    );
-
-    renderHome();
-    renderRecords();
-    renderReportPreview();
-  }
-);
-
-$("#clearData").addEventListener(
-  "click",
-  () => {
-    const confirmed =
-      confirm(
-        "هل أنت متأكد؟ سيتم حذف جميع العمليات نهائياً من هذا الجهاز."
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    records = [];
-
-    saveRecords();
-
-    renderHome();
-    renderRecords();
-    renderReportPreview();
-
-    toast(
-      "تم حذف جميع العمليات"
+  if (croissant) {
+    croissant.boxSize = Math.max(
+      1,
+      Number($("#croissantBoxSize").value) || 40
     );
   }
-);
 
-/* =========================================================
+  if (donut) {
+    donut.boxSize = Math.max(
+      1,
+      Number($("#donutBoxSize").value) || 8
+    );
+  }
+
+  saveSettings();
+
+  toast("تم حفظ الإعدادات");
+  renderHome();
+  renderRecords();
+  renderReportPreview();
+});
+
+$("#clearData").addEventListener("click", () => {
+  if (!confirm(
+    "هل أنت متأكد؟ سيتم حذف جميع العمليات نهائياً من هذا الجهاز."
+  )) return;
+
+  records = [];
+  localStorage.removeItem(KEY);
+  localStorage.removeItem("croissant_store_records_v4");
+
+  saveRecords();
+
+  renderHome();
+  renderRecords();
+  renderReportPreview();
+
+  toast("تم حذف جميع العمليات");
+});
+
+/* =========================
    PWA
-========================================================= */
+========================= */
 
 let deferredPrompt = null;
 
-window.addEventListener(
-  "beforeinstallprompt",
-  event => {
-    event.preventDefault();
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  $("#installBtn").hidden = false;
+});
 
-    deferredPrompt =
-      event;
+$("#installBtn").addEventListener("click", async () => {
+  if (!deferredPrompt) return;
 
-    $("#installBtn").hidden =
-      false;
-  }
-);
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
 
-$("#installBtn").addEventListener(
-  "click",
-  async () => {
-    if (!deferredPrompt) {
-      return;
-    }
-
-    deferredPrompt.prompt();
-
-    await deferredPrompt.userChoice;
-
-    deferredPrompt = null;
-
-    $("#installBtn").hidden =
-      true;
-  }
-);
+  deferredPrompt = null;
+  $("#installBtn").hidden = true;
+});
 
 if (
   "serviceWorker" in navigator &&
@@ -2697,24 +1364,16 @@ if (
     .catch(console.error);
 }
 
-/* =========================================================
+/* =========================
    START
-========================================================= */
+========================= */
 
-$("#fromDate").value =
-  selectedDate;
-
-$("#toDate").value =
-  selectedDate;
+$("#fromDate").value = selectedDate;
+$("#toDate").value = selectedDate;
 
 loadSettingsForm();
-
 updatePartyType();
-
 updateFormDate();
-
 renderHome();
-
 renderRecords();
-
 renderReportPreview();
